@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  sale_crm:
+    build:
+      context: ../../
+      dockerfile: environments/prod/Dockerfile
+    container_name: sale-crm-prod
+    ports:
+      - '3003:3003'
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    networks:
+      - sale_crm-prod-network
+    restart: always
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3003/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  sale_crm-prod-network:
+    driver: bridge

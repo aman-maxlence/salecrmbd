@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  sale_crm:
+    build:
+      context: ../../
+      dockerfile: environments/dev/Dockerfile
+    container_name: sale-crm-dev
+    ports:
+      - "3003:3003"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+    networks:
+      - shared-network      # same global network as userbd/maxpmbd/redis/mysql
+      - sale_crm-dev-network
+    volumes:
+      - ../../src:/app/src
+    restart: unless-stopped
+
+networks:
+  shared-network:
+    external: true
+
+  sale_crm-dev-network:
+    driver: bridge

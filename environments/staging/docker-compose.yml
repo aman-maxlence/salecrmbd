@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  sale_crm:
+    build:
+      context: ../../
+      dockerfile: environments/staging/Dockerfile
+    container_name: sale-crm-staging
+    ports:
+      - '3013:3003'
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: staging
+    networks:
+      - sale_crm-staging-network
+    restart: unless-stopped
+
+networks:
+  sale_crm-staging-network:
+    driver: bridge
