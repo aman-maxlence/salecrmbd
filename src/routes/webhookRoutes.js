@@ -6,6 +6,7 @@ import { WebhookVerificationMiddleware } from '../middleware/WebhookVerification
 import {
     adminSetupValidation,
     inviteAcceptanceValidation,
+    inviteLinkJoinedValidation,
     handleWebhookValidationErrors,
 } from '../modules/webhook/validation/rules.js';
 import Logger from '../utils/Logger.js';
@@ -37,6 +38,14 @@ export async function initializeWebhookRoutes() {
             inviteAcceptanceValidation,
             handleWebhookValidationErrors,
             (req, res) => webhookController.handleInviteAccepted(req, res)
+        );
+
+        router.post(
+            '/user-service-invite-link-joined',
+            WebhookVerificationMiddleware.verifyWebhookSignature,
+            inviteLinkJoinedValidation,
+            handleWebhookValidationErrors,
+            (req, res) => webhookController.handleOrgInviteLinkJoined(req, res)
         );
 
         Logger.info('Webhook routes registered');

@@ -55,6 +55,31 @@ export class WebhookController {
             });
         }
     }
+
+    /**
+     * POST /webhooks/user-service-invite-link-joined
+     */
+    async handleOrgInviteLinkJoined(req, res) {
+        try {
+            const { userId, orgId, emailId, linkToken } = req.body;
+            const result = await this.webhookService.handleOrgInviteLinkJoined({ userId, orgId, emailId, linkToken });
+
+            await this.webhookService.logWebhookEvent('ORG_INVITE_LINK_JOINED', { userId, orgId, emailId }, 'success');
+
+            return res.status(200).json({
+                success: true,
+                message: 'Invite link join acknowledged',
+                data: result.data,
+            });
+        } catch (error) {
+            Logger.error('[WebhookController] Error in handleOrgInviteLinkJoined:', error.message);
+            await this.webhookService.logWebhookEvent('ORG_INVITE_LINK_JOINED', req.body, 'error', { error: error.message });
+            return res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to process webhook',
+            });
+        }
+    }
 }
 
 export default WebhookController;

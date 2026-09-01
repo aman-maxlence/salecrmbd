@@ -13,7 +13,7 @@
         "start:staging": "npx dotenv -e environments/staging/.env -- node src/index.js",
         "start:prod": "npx dotenv -e environments/prod/.env -- node src/index.js",
         "lint": "eslint src/",
-        "test": "jest --coverage"
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
     },
     "dependencies": {
         "axios": "^1.13.6",

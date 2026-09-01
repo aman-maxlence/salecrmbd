@@ -50,8 +50,56 @@ const Database = {
             const { initializeSalesRepModels } = await import('../modules/salesRep/models/index.js');
             const salesRepModels = initializeSalesRepModels(sequelize);
 
+            const { initializeOrgRoleModels } = await import('../modules/orgRole/models/index.js');
+            const orgRoleModels = initializeOrgRoleModels(sequelize);
+
+            const { initializeTerritoryModels } = await import('../modules/territory/models/index.js');
+            const territoryModels = initializeTerritoryModels(sequelize);
+
+            const { initializeDepartmentModels } = await import('../modules/department/models/index.js');
+            const departmentModels = initializeDepartmentModels(sequelize);
+
+            const { initializeTeamModels } = await import('../modules/team/models/index.js');
+            const teamModels = initializeTeamModels(sequelize);
+
+            const { initializeWorkspaceSettingsModels } = await import('../modules/workspaceSettings/models/index.js');
+            const workspaceSettingsModels = initializeWorkspaceSettingsModels(sequelize);
+
+            const { initializePortalUserModels } = await import('../modules/portalUser/models/index.js');
+            const portalUserModels = initializePortalUserModels(sequelize);
+
+            const { initializeInvitationModels } = await import('../modules/invitation/models/index.js');
+            const invitationModels = initializeInvitationModels(sequelize);
+
+            const { initializeInviteLinkModels } = await import('../modules/inviteLink/models/index.js');
+            const inviteLinkModels = initializeInviteLinkModels(sequelize);
+
+            const { initializePermissionAuditLogModels } = await import('../modules/permissionAuditLog/models/index.js');
+            const permissionAuditLogModels = initializePermissionAuditLogModels(sequelize);
+
+            const { initializeOnboardingModels } = await import('../modules/onboarding/models/index.js');
+            const onboardingModels = initializeOnboardingModels(sequelize);
+
+            const { initializeInventoryModels } = await import('../modules/inventory/models/index.js');
+            const inventoryModels = initializeInventoryModels(sequelize);
+
+            const { initializeDealModels } = await import('../modules/deal/models/index.js');
+            const dealModels = initializeDealModels(sequelize);
+
             const models = {
                 ...salesRepModels,
+                ...orgRoleModels,
+                ...territoryModels,
+                ...departmentModels,
+                ...teamModels,
+                ...workspaceSettingsModels,
+                ...portalUserModels,
+                ...invitationModels,
+                ...inviteLinkModels,
+                ...permissionAuditLogModels,
+                ...onboardingModels,
+                ...inventoryModels,
+                ...dealModels,
             };
 
             this._models = models;

@@ -76,6 +76,21 @@ async function startServer() {
         app.use('/api', allRoutes);
         Logger.info('All routes initialized');
 
+        const { default: LowStockAlertService } = await import('./modules/inventory/service/LowStockAlertService.js');
+        const alertIntervalMs = Number.parseInt(process.env.INVENTORY_ALERT_INTERVAL_MS, 10) || 5 * 60 * 1000;
+        const runLowStockJob = async () => {
+            try {
+                const models = Database.getModels();
+                const result = await new LowStockAlertService(models).runNotificationJob();
+                Logger.info(`Low-stock alert job finished: orgs=${result.orgs} newlyNotified=${result.newlyNotified}`);
+            } catch (err) {
+                Logger.error('Low-stock alert job failed:', err);
+            }
+        };
+        setTimeout(runLowStockJob, 15_000);
+        setInterval(runLowStockJob, alertIntervalMs);
+        Logger.info(`Low-stock alert job scheduled every ${alertIntervalMs}ms`);
+
         app.use((req, res) => {
             res.status(404).json({
                 success: false,

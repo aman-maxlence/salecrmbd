@@ -15,6 +15,15 @@ export const inviteAcceptanceValidation = [
     body('timestamp').trim().notEmpty().isISO8601(),
 ];
 
+export const inviteLinkJoinedValidation = [
+    body('userId').notEmpty().withMessage('userId is required').isInt({ min: 1 }),
+    body('orgId').notEmpty().withMessage('orgId is required').isInt({ min: 1 }),
+    body('emailId').notEmpty().isEmail(),
+    body('linkToken').trim().notEmpty().withMessage('linkToken is required'),
+    body('event').trim().notEmpty().equals('ORG_INVITE_LINK_JOINED'),
+    body('timestamp').trim().notEmpty().isISO8601(),
+];
+
 export const handleWebhookValidationErrors = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -34,4 +43,4 @@ export const handleWebhookValidationErrors = (req, res, next) => {
     next();
 };
 
-export default { adminSetupValidation, inviteAcceptanceValidation, handleWebhookValidationErrors };
+export default { adminSetupValidation, inviteAcceptanceValidation, inviteLinkJoinedValidation, handleWebhookValidationErrors };
