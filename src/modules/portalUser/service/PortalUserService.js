@@ -160,7 +160,7 @@ class PortalUserService {
     async listByOrg(orgId) {
         const { PortalUser, OrgRole, Territory } = this.models;
         const portalUsers = await PortalUser.findAll({
-            where: { org_id: orgId },
+            where: { org_id: orgId, status: 'active' },
             include: [
                 { model: OrgRole, as: 'role' },
                 { model: Territory, as: 'territory' },

@@ -65,6 +65,20 @@ const config = {
         SUPPORT_EMAIL: process.env.SUPPORT_EMAIL || 'support@maxlence.com',
     },
 
+    // DigitalOcean Spaces (S3-compatible) - workspace logo uploads.
+    // Deliberately a separate bucket/account from maxpmbd's, not shared -
+    // fill these in via environments/<env>/.env before logo upload will work.
+    s3: {
+        endpoint: process.env.DIGITALOCEAN_ENDPOINT || 'https://syd1.digitaloceanspaces.com',
+        region: process.env.DIGITALOCEAN_REGION || 'syd1',
+        accessKeyId: process.env.DIGITALOCEAN_ACCESS_KEY || '',
+        secretAccessKey: process.env.DIGITALOCEAN_SECRET_KEY || '',
+        bucket: process.env.DIGITALOCEAN_BUCKET_NAME || '',
+        maxFileSize: 5 * 1024 * 1024,
+        uploadUrlExpiry: 900,
+        downloadUrlExpiry: 604800,
+    },
+
     // Product identity - "Sales CRM" is already seeded as product id 2 in
     // userbd/scripts/seedProductsAndPlans.js (2nd product after Project
     // Management) and hardcoded as `id: 2` in userpmfe's ProductSelectionPage.

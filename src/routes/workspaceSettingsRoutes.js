@@ -22,6 +22,7 @@ export async function initializeWorkspaceSettingsRoutes() {
 
         router.get('/', AuthMiddleware, (req, res, next) => workspaceSettingsController.getSettings(req, res, next));
         router.put('/', AuthMiddleware, PermissionMiddleware('manage_organization_settings'), (req, res, next) => workspaceSettingsController.updateSettings(req, res, next));
+        router.post('/logo/presigned-url', AuthMiddleware, PermissionMiddleware('manage_organization_settings'), (req, res, next) => workspaceSettingsController.getLogoPresignedUrl(req, res, next));
 
         Logger.info('Workspace settings routes registered');
         return router;

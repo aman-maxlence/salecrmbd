@@ -65,6 +65,9 @@ const Database = {
             const { initializeWorkspaceSettingsModels } = await import('../modules/workspaceSettings/models/index.js');
             const workspaceSettingsModels = initializeWorkspaceSettingsModels(sequelize);
 
+            const { initializeCompanyDetailsModels } = await import('../modules/companyDetails/models/index.js');
+            const companyDetailsModels = initializeCompanyDetailsModels(sequelize);
+
             const { initializePortalUserModels } = await import('../modules/portalUser/models/index.js');
             const portalUserModels = initializePortalUserModels(sequelize);
 
@@ -93,6 +96,7 @@ const Database = {
                 ...departmentModels,
                 ...teamModels,
                 ...workspaceSettingsModels,
+                ...companyDetailsModels,
                 ...portalUserModels,
                 ...invitationModels,
                 ...inviteLinkModels,

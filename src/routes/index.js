@@ -45,6 +45,11 @@ export async function initializeAllRoutes() {
         router.use('/org/:orgId/workspace-settings', workspaceSettingsRoutes);
         Logger.info('Workspace settings routes initialized');
 
+        const { default: initializeCompanyDetailsRoutes } = await import('./companyDetailsRoutes.js');
+        const companyDetailsRoutes = await initializeCompanyDetailsRoutes();
+        router.use('/org/:orgId/company-details', companyDetailsRoutes);
+        Logger.info('Company details routes initialized');
+
         const { default: initializePortalUserRoutes } = await import('./portalUserRoutes.js');
         const portalUserRoutes = await initializePortalUserRoutes();
         router.use('/org/:orgId/users', portalUserRoutes);
