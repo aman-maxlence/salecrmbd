@@ -53,8 +53,26 @@ const config = {
         url: process.env.USER_SERVICE_URL || 'http://host.docker.internal:3001',
     },
 
+    // Technogex (separate e-commerce product - catalog sync only, no auth/org ties)
+    technogex: {
+        url: process.env.TECHNOGEX_API_URL || 'http://localhost:8080/api/v1',
+        apiKey: process.env.CRM_SYNC_API_KEY || '',
+        syncIntervalMs: Number.parseInt(process.env.TECHNOGEX_SYNC_INTERVAL_MS, 10) || 15 * 60 * 1000,
+        fullResyncIntervalMs: Number.parseInt(process.env.TECHNOGEX_FULL_RESYNC_INTERVAL_MS, 10) || 24 * 60 * 60 * 1000,
+    },
+
     webhook: {
         secret: process.env.USER_SERVICE_WEBHOOK_SECRET || '',
+    },
+
+    // Web Push (browser push notifications) - VAPID key pair. Empty in an
+    // environment that hasn't generated one yet; PushService no-ops rather
+    // than throwing when these are blank (same "never block the real
+    // action" philosophy as NotificationService's email sends).
+    webPush: {
+        publicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '',
+        privateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY || '',
+        subject: process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:support@maxlence.com',
     },
 
     emailConfig: {

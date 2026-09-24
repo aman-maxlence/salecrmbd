@@ -24,9 +24,13 @@ const initializeCompanyDetailsModel = (sequelize) => {
         website: { type: DataTypes.STRING(255), allowNull: true },
         company_name: { type: DataTypes.STRING(255), allowNull: true },
         vat_id: { type: DataTypes.STRING(100), allowNull: true },
+        industry: { type: DataTypes.STRING(100), allowNull: true },
+        business_type: { type: DataTypes.STRING(50), allowNull: true },
         address: { type: DataTypes.STRING(500), allowNull: true },
         city: { type: DataTypes.STRING(100), allowNull: true },
         state: { type: DataTypes.STRING(100), allowNull: true },
+        country: { type: DataTypes.STRING(100), allowNull: true },
+        postal_code: { type: DataTypes.STRING(20), allowNull: true },
         bank_name: { type: DataTypes.STRING(255), allowNull: true },
         bank_address: { type: DataTypes.STRING(500), allowNull: true },
         bank_routing_number: { type: DataTypes.STRING(100), allowNull: true },
@@ -35,6 +39,13 @@ const initializeCompanyDetailsModel = (sequelize) => {
         iban: { type: DataTypes.STRING(100), allowNull: true },
         swift_code: { type: DataTypes.STRING(20), allowNull: true },
         bic: { type: DataTypes.STRING(20), allowNull: true },
+        // 'draft' skips the companyName-required check (CompanyDetailsService._validate) -
+        // lets a user save partial progress without fully completing the form.
+        status: {
+            type: DataTypes.ENUM('draft', 'complete'),
+            allowNull: false,
+            defaultValue: 'complete',
+        },
     }, {
         tableName: 'company_details',
         timestamps: true,

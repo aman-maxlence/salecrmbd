@@ -1,13 +1,3 @@
-export const CATALOG_FIELD_KEYS = ['sku', 'name', 'category', 'unitPrice', 'tax'];
-
-export const DEFAULT_CATALOG_FIELDS = {
-    sku: { enabled: true, required: true, label: 'SKU' },
-    name: { enabled: true, required: true, label: 'Name' },
-    category: { enabled: true, required: false, label: 'Category' },
-    unitPrice: { enabled: true, required: true, label: 'Unit price' },
-    tax: { enabled: true, required: false, label: 'Tax %' },
-};
-
 export const STOCK_ADJUSTMENT_TYPES = ['receive', 'issue', 'transfer'];
 
 export const DEFAULT_UOMS = [
@@ -31,8 +21,6 @@ export function toNumber(value, fallback = 0) {
 }
 
 export default {
-    CATALOG_FIELD_KEYS,
-    DEFAULT_CATALOG_FIELDS,
     STOCK_ADJUSTMENT_TYPES,
     DEFAULT_UOMS,
     DEFAULT_PRICING_TIERS,

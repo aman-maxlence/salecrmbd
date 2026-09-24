@@ -16,12 +16,29 @@
  * script, not this doc").
  */
 export const PERMISSIONS = [
+    // Settings section - parent gate: must be true before ANY settings-area
+    // sub-permission below is even checked (see salecrmfe's
+    // usePermissions.hasSettingsPermission). Without this, a role could
+    // technically hold e.g. manage_organization_settings but that alone
+    // used to be the only thing deciding Settings visibility - now it's a
+    // two-step check, matching the design doc's "Settings" section being a
+    // distinct area from the individual capabilities inside it.
+    'access_settings',
     // Org / Roles / Territories
+    // manage_organization_settings = workspace branding/personalisation
+    // (Profile & Theme: logo, company name, theme, start page - WorkspaceSettings).
+    // manage_company_details = legal/billing info (Company Details: contact,
+    // tax ID, address, industry, bank details - CompanyDetails). Two
+    // deliberately separate models (see their own file comments) - previously
+    // both gated by the one key below, so a role couldn't be granted one
+    // without the other even though they're unrelated in practice.
     'manage_organization_settings',
+    'manage_company_details',
     'manage_roles',
     'view_roles',
     'invite_users',
     'manage_users',
+    'manage_teams',
     'manage_territories',
     'manage_departments',
     // Leads / Deals
@@ -50,6 +67,20 @@ export const PERMISSIONS = [
     'manage_inventory',
     'adjust_stock',
     'manage_inventory_settings',
+    // Vendors / Purchase Orders / Sales Orders
+    'view_vendors',
+    'manage_vendors',
+    'view_purchase_orders',
+    'manage_purchase_orders',
+    'receive_purchase_orders',
+    'view_sales_orders',
+    'manage_sales_orders',
+    'fulfill_sales_orders',
+    // Technogex catalog integration
+    'view_technogex_catalog',
+    'manage_technogex_sync',
+    // Form Builder (generic, cross-module dynamic form/section engine)
+    'manage_form_schema',
 ];
 
 const allTrue = () => Object.fromEntries(PERMISSIONS.map((key) => [key, true]));
@@ -62,6 +93,9 @@ export const DEFAULT_PERMISSION_MATRIX = {
 
     Manager: {
         ...allFalse(),
+        // Needed for Manager's existing manage_inventory_settings/manage_form_schema
+        // access below - without this they'd be locked out of Settings entirely.
+        access_settings: true,
         view_all_leads: true, // scoped to own territory at query time
         view_all_deals: true, // scoped to own territory at query time
         create_lead: true,
@@ -78,12 +112,25 @@ export const DEFAULT_PERMISSION_MATRIX = {
         manage_inventory: true,
         adjust_stock: true,
         manage_inventory_settings: true,
+        view_vendors: true,
+        manage_vendors: true,
+        view_purchase_orders: true,
+        manage_purchase_orders: true,
+        receive_purchase_orders: true,
+        view_sales_orders: true,
+        manage_sales_orders: true,
+        fulfill_sales_orders: true,
+        view_technogex_catalog: true,
+        manage_technogex_sync: true,
+        manage_form_schema: true,
     },
 
     'Sales Rep': {
         ...allFalse(),
         create_lead: true, // own leads only, enforced at query time
         view_inventory: true, // pick catalog items onto own deals
+        view_sales_orders: true,
+        view_technogex_catalog: true, // pick Technogex catalog items onto own deals
     },
 
     'Support Agent': {

@@ -23,6 +23,7 @@ export async function initializeInvitationRoutes() {
         router.get('/', AuthMiddleware, PermissionMiddleware('invite_users'), (req, res, next) => invitationController.listInvites(req, res, next));
         router.delete('/:id', AuthMiddleware, PermissionMiddleware('invite_users'), (req, res, next) => invitationController.revokeInvite(req, res, next));
         router.post('/:id/resend', AuthMiddleware, PermissionMiddleware('invite_users'), (req, res, next) => invitationController.resendInvite(req, res, next));
+        router.post('/:id/remind', AuthMiddleware, PermissionMiddleware('invite_users'), (req, res, next) => invitationController.remindInvite(req, res, next));
 
         Logger.info('Invitation routes registered');
         return router;

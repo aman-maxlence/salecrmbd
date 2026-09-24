@@ -1,10 +1,12 @@
 import AppError from '../../../errors/AppError.js';
 import { ErrorCode } from '../../../errors/index.js';
 import { Redis } from '../../redis/Redis.js';
+import AuditLogService from '../../auditLog/service/AuditLogService.js';
 
 class PortalUserService {
     constructor(models) {
         this.models = models;
+        this.auditLogService = new AuditLogService(models);
     }
 
     /**
@@ -36,12 +38,24 @@ class PortalUserService {
         return plain;
     }
 
+    /** Single-user version of _attachUserProfiles' Redis lookup - for anything that just needs one user's name/email (e.g. NotificationService resolving who to email). Best-effort: returns nulls on a cache miss rather than throwing. */
+    async getUserProfile(userId) {
+        try {
+            const redisClient = Redis.getClient();
+            const raw = await redisClient.get(`users:${userId}`);
+            const profile = raw ? JSON.parse(raw) : null;
+            return { name: profile?.name ?? null, email: profile?.email ?? null };
+        } catch {
+            return { name: null, email: null };
+        }
+    }
+
     /**
      * Idempotent upsert used by both webhook handlers (SETUP_ADMIN_USER and
      * USER_INVITE_ACCEPTED) - safe against duplicate webhook delivery.
      * Always starts has_onboarded: false (design doc §4.1/§4.4).
      */
-    async createFromWebhook({ userId, orgId, roleId, territoryId = null, isDualAccess = false }, transaction) {
+    async createFromWebhook({ userId, orgId, roleId, territoryId = null, teamId = null, isDualAccess = false, invitedByUserId = null }, transaction) {
         const { PortalUser } = this.models;
         const [portalUser] = await PortalUser.findOrCreate({
             where: { user_id: userId, org_id: orgId },
@@ -50,13 +64,40 @@ class PortalUserService {
                 org_id: orgId,
                 role_id: roleId,
                 territory_id: territoryId,
+                team_id: teamId,
                 status: 'active',
                 has_onboarded: false,
                 is_dual_access: isDualAccess,
+                invited_by_user_id: invitedByUserId,
             },
             ...(transaction && { transaction }),
         });
         return portalUser;
+    }
+
+    /**
+     * Resolves this PortalUser's inviter to a display name for the Welcome
+     * screen's "You've been invited to {org} by {inviter}" copy (design doc
+     * §4.2 Screen 1). Best-effort, same as _attachUserProfiles: returns null
+     * rather than failing if there's no inviter, no cache entry, or Redis is
+     * unreachable.
+     */
+    async getInviterName(orgId, userId) {
+        const { PortalUser } = this.models;
+        const portalUser = await PortalUser.findOne({
+            where: { user_id: userId, org_id: orgId },
+            attributes: ['invited_by_user_id'],
+        });
+        if (!portalUser?.invited_by_user_id) return null;
+
+        try {
+            const redisClient = Redis.getClient();
+            const raw = await redisClient.get(`users:${portalUser.invited_by_user_id}`);
+            const profile = raw ? JSON.parse(raw) : null;
+            return profile?.name ?? null;
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -170,14 +211,25 @@ class PortalUserService {
         return this._attachUserProfiles(portalUsers);
     }
 
-    async updateRoleOrTerritory(orgId, userId, { roleId, territoryId, teamId, managerId }) {
+    async updateRoleOrTerritory(orgId, userId, { roleId, territoryId, teamId, managerId }, actorUserId = null) {
         const { PortalUser, OrgRole, Team } = this.models;
         const portalUser = await PortalUser.findOne({ where: { user_id: userId, org_id: orgId } });
         if (!portalUser) {
             throw new AppError('User not found in this org.', 404, ErrorCode.NOT_FOUND);
         }
 
+        const previousRoleId = portalUser.role_id;
+        const previousTeamId = portalUser.team_id;
+
         if (roleId !== undefined) {
+            // The org owner (is_dual_access is only ever set true by
+            // WebhookService.handleAdminSetup, for the person who actually
+            // created the org - never for an invited teammate) always keeps
+            // Super Admin. Without this, an org could end up with nobody
+            // holding it, or the owner losing access to their own org.
+            if (portalUser.is_dual_access) {
+                throw new AppError("The organization owner's role cannot be changed.", 403, ErrorCode.FORBIDDEN);
+            }
             const role = await OrgRole.findOne({ where: { id: roleId, org_id: orgId } });
             if (!role) {
                 throw new AppError('Role not found in this org.', 404, ErrorCode.NOT_FOUND);
@@ -225,6 +277,25 @@ class PortalUserService {
         }
 
         await portalUser.save();
+
+        // Audit & History checklist #4 "record role assignments" - a
+        // distinct action from team changes, with both the previous and new
+        // value, and only fired when the value genuinely changed (invite-time
+        // role/team is already captured separately on invitation.created).
+        if (roleId !== undefined && String(previousRoleId) !== String(portalUser.role_id)) {
+            await this.auditLogService.record(orgId, actorUserId, 'portal_user.role_changed', {
+                entityType: 'portal_user', entityId: portalUser.id,
+                details: { targetUserId: userId, previousRoleId, newRoleId: portalUser.role_id },
+            });
+        }
+        // Audit & History checklist #5 "record team assignments".
+        if (teamId !== undefined && String(previousTeamId) !== String(portalUser.team_id)) {
+            await this.auditLogService.record(orgId, actorUserId, 'portal_user.team_changed', {
+                entityType: 'portal_user', entityId: portalUser.id,
+                details: { targetUserId: userId, previousTeamId, newTeamId: portalUser.team_id },
+            });
+        }
+
         return portalUser;
     }
 
@@ -244,6 +315,10 @@ class PortalUserService {
         const portalUser = await PortalUser.findOne({ where: { user_id: userId, org_id: orgId } });
         if (!portalUser) {
             throw new AppError('User not found in this org.', 404, ErrorCode.NOT_FOUND);
+        }
+
+        if (portalUser.is_dual_access) {
+            throw new AppError('The org owner cannot be removed.', 400, ErrorCode.VALIDATION_ERROR);
         }
 
         portalUser.status = 'inactive';
@@ -269,6 +344,31 @@ class PortalUserService {
     async countCompletedOnboardingsInOrg(orgId, transaction) {
         const { PortalUser } = this.models;
         return PortalUser.count({ where: { org_id: orgId, has_onboarded: true }, ...(transaction && { transaction }) });
+    }
+
+    /**
+     * Admin-authorised onboarding restart (checklist item not covered by
+     * design doc §4): flips has_onboarded back to false and clears the
+     * user's OnboardingState so their next /api/onboarding/state call
+     * starts a fresh wizard from 'welcome' rather than resuming.
+     */
+    async restartOnboarding(orgId, userId, actorUserId = null) {
+        const { PortalUser, OnboardingState } = this.models;
+        const portalUser = await PortalUser.findOne({ where: { user_id: userId, org_id: orgId } });
+        if (!portalUser) {
+            throw new AppError('User not found in this org.', 404, ErrorCode.NOT_FOUND);
+        }
+
+        portalUser.has_onboarded = false;
+        await portalUser.save();
+
+        await OnboardingState.destroy({ where: { org_id: orgId, user_id: userId } });
+
+        await this.auditLogService.record(orgId, actorUserId, 'onboarding.restarted', {
+            entityType: 'portal_user', entityId: portalUser.id, details: { targetUserId: userId },
+        });
+
+        return portalUser;
     }
 }
 

@@ -53,6 +53,9 @@ const Database = {
             const { initializeOrgRoleModels } = await import('../modules/orgRole/models/index.js');
             const orgRoleModels = initializeOrgRoleModels(sequelize);
 
+            const { initializeCountryModels } = await import('../modules/country/models/index.js');
+            const countryModels = initializeCountryModels(sequelize);
+
             const { initializeTerritoryModels } = await import('../modules/territory/models/index.js');
             const territoryModels = initializeTerritoryModels(sequelize);
 
@@ -67,6 +70,27 @@ const Database = {
 
             const { initializeCompanyDetailsModels } = await import('../modules/companyDetails/models/index.js');
             const companyDetailsModels = initializeCompanyDetailsModels(sequelize);
+
+            const { initializeUserPreferencesModels } = await import('../modules/userPreferences/models/index.js');
+            const userPreferencesModels = initializeUserPreferencesModels(sequelize);
+
+            const { initializeBusinessPreferencesModels } = await import('../modules/businessPreferences/models/index.js');
+            const businessPreferencesModels = initializeBusinessPreferencesModels(sequelize);
+
+            const { initializeIntegrationModels } = await import('../modules/integrations/models/index.js');
+            const integrationModels = initializeIntegrationModels(sequelize);
+
+            const { initializeAuditLogModels } = await import('../modules/auditLog/models/index.js');
+            const auditLogModels = initializeAuditLogModels(sequelize);
+
+            const { initializeNotificationModels } = await import('../modules/notifications/models/index.js');
+            const notificationModels = initializeNotificationModels(sequelize);
+
+            const { initializeAnalyticsModels } = await import('../modules/analytics/models/index.js');
+            const analyticsModels = initializeAnalyticsModels(sequelize);
+
+            const { initializePushModels } = await import('../modules/push/models/index.js');
+            const pushModels = initializePushModels(sequelize);
 
             const { initializePortalUserModels } = await import('../modules/portalUser/models/index.js');
             const portalUserModels = initializePortalUserModels(sequelize);
@@ -89,14 +113,37 @@ const Database = {
             const { initializeDealModels } = await import('../modules/deal/models/index.js');
             const dealModels = initializeDealModels(sequelize);
 
+            const { initializePurchasingModels } = await import('../modules/purchasing/models/index.js');
+            const purchasingModels = initializePurchasingModels(sequelize);
+
+            const { initializeSalesOrderModels } = await import('../modules/salesOrder/models/index.js');
+            const salesOrderModels = initializeSalesOrderModels(sequelize);
+
+            const { initializeTransferOrderModels } = await import('../modules/transferOrder/models/index.js');
+            const transferOrderModels = initializeTransferOrderModels(sequelize);
+
+            const { initializeTechnogexModels } = await import('../modules/technogex/models/index.js');
+            const technogexModels = initializeTechnogexModels(sequelize);
+
+            const { initializeFormSchemaModels } = await import('../modules/formSchema/models/index.js');
+            const formSchemaModels = initializeFormSchemaModels(sequelize);
+
             const models = {
                 ...salesRepModels,
                 ...orgRoleModels,
+                ...countryModels,
                 ...territoryModels,
                 ...departmentModels,
                 ...teamModels,
                 ...workspaceSettingsModels,
                 ...companyDetailsModels,
+                ...userPreferencesModels,
+                ...businessPreferencesModels,
+                ...integrationModels,
+                ...auditLogModels,
+                ...notificationModels,
+                ...analyticsModels,
+                ...pushModels,
                 ...portalUserModels,
                 ...invitationModels,
                 ...inviteLinkModels,
@@ -104,6 +151,11 @@ const Database = {
                 ...onboardingModels,
                 ...inventoryModels,
                 ...dealModels,
+                ...purchasingModels,
+                ...salesOrderModels,
+                ...transferOrderModels,
+                ...technogexModels,
+                ...formSchemaModels,
             };
 
             this._models = models;

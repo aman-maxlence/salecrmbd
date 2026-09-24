@@ -44,6 +44,11 @@ const initializePermissionAuditLogModel = (sequelize) => {
         tableName:   'permission_audit_logs',
         timestamps:  true,
         underscored: true,
+        // `underscored` only maps the DB column to snake_case - the JS/JSON
+        // attribute stays `createdAt` unless renamed explicitly here, which
+        // silently breaks any frontend code (and Sequelize `order` calls)
+        // expecting `created_at` in the serialized response.
+        createdAt:   'created_at',
         updatedAt:   false,
         indexes: [
             { fields: ['org_id', 'role_id'] },

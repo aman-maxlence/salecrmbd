@@ -1,10 +1,12 @@
 import { DataTypes } from 'sequelize';
 
 /**
- * A named team, scoped to an org and always nested under exactly one
- * Territory and one Department - mirrors Department.js/Territory.js's
- * shape (org-scoped-unique-name), plus the department/territory FKs and an
- * optional manager, since the "Create Team" form collects all of that.
+ * A named team, always nested under exactly one Department (org hierarchy:
+ * Country -> Territory -> Department -> Team). `territory_id` is kept as a
+ * plain column for cheap direct filtering (still equal to
+ * `department.territory_id` at all times) but is derived, not an
+ * independent input - TeamService always sets it from the chosen
+ * Department, never accepts it directly.
  */
 const initializeTeamModel = (sequelize) => {
     const Team = sequelize.define('Team', {
@@ -53,7 +55,7 @@ const initializeTeamModel = (sequelize) => {
             { fields: ['org_id'] },
             { fields: ['department_id'] },
             { fields: ['territory_id'] },
-            { fields: ['org_id', 'name'], unique: true },
+            { fields: ['org_id', 'department_id', 'name'], unique: true },
         ],
     });
 

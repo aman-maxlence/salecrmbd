@@ -8,8 +8,8 @@ class TerritoryController {
     async createTerritory(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const { name, managerUserId } = req.body;
-            const territory = await this.territoryService.createTerritory(orgId, { name, managerUserId });
+            const { name, managerUserId, countryId } = req.body;
+            const territory = await this.territoryService.createTerritory(orgId, { name, managerUserId, countryId });
             return res.json(ResponseFormatter.success('Territory created successfully', territory, 201));
         } catch (err) {
             next(err);
@@ -39,8 +39,8 @@ class TerritoryController {
     async updateTerritory(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const { name, managerUserId, status } = req.body;
-            const territory = await this.territoryService.updateTerritory(orgId, req.params.id, { name, managerUserId, status });
+            const { name, managerUserId, status, countryId } = req.body;
+            const territory = await this.territoryService.updateTerritory(orgId, req.params.id, { name, managerUserId, status, countryId });
             return res.json(ResponseFormatter.success('Territory updated successfully', territory, 200));
         } catch (err) {
             next(err);

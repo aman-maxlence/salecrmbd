@@ -91,6 +91,57 @@ async function startServer() {
         setInterval(runLowStockJob, alertIntervalMs);
         Logger.info(`Low-stock alert job scheduled every ${alertIntervalMs}ms`);
 
+        const { default: InvitationService } = await import('./modules/invitation/service/InvitationService.js');
+        const invitationReminderIntervalMs = Number.parseInt(process.env.INVITATION_REMINDER_INTERVAL_MS, 10) || 6 * 60 * 60 * 1000;
+        const runInvitationReminderJob = async () => {
+            try {
+                const models = Database.getModels();
+                const result = await new InvitationService(models).runReminderJob();
+                Logger.info(`Invitation reminder job finished: checked=${result.checked} remindersSent=${result.remindersSent}`);
+            } catch (err) {
+                Logger.error('Invitation reminder job failed:', err);
+            }
+        };
+        setTimeout(runInvitationReminderJob, 25_000);
+        setInterval(runInvitationReminderJob, invitationReminderIntervalMs);
+        Logger.info(`Invitation reminder job scheduled every ${invitationReminderIntervalMs}ms`);
+
+        const { default: OnboardingService } = await import('./modules/onboarding/service/OnboardingService.js');
+        const abandonmentSweepIntervalMs = Number.parseInt(process.env.ONBOARDING_ABANDONMENT_SWEEP_INTERVAL_MS, 10) || 12 * 60 * 60 * 1000;
+        const abandonmentThresholdDays = Number.parseInt(process.env.ONBOARDING_ABANDONMENT_THRESHOLD_DAYS, 10) || 7;
+        const runAbandonmentSweepJob = async () => {
+            try {
+                const models = Database.getModels();
+                const result = await new OnboardingService(models).runAbandonmentSweep({ thresholdDays: abandonmentThresholdDays });
+                Logger.info(`Onboarding abandonment sweep finished: checked=${result.checked} tracked=${result.tracked}`);
+            } catch (err) {
+                Logger.error('Onboarding abandonment sweep failed:', err);
+            }
+        };
+        setTimeout(runAbandonmentSweepJob, 30_000);
+        setInterval(runAbandonmentSweepJob, abandonmentSweepIntervalMs);
+        Logger.info(`Onboarding abandonment sweep scheduled every ${abandonmentSweepIntervalMs}ms`);
+
+        const { default: TechnogexSyncService } = await import('./modules/technogex/service/TechnogexSyncService.js');
+        const technogexSyncIntervalMs = Number.parseInt(process.env.TECHNOGEX_SYNC_INTERVAL_MS, 10) || 15 * 60 * 1000;
+        const technogexFullResyncIntervalMs = Number.parseInt(process.env.TECHNOGEX_FULL_RESYNC_INTERVAL_MS, 10) || 24 * 60 * 60 * 1000;
+        let lastTechnogexFullResync = 0;
+        const runTechnogexSyncJob = async () => {
+            try {
+                const models = Database.getModels();
+                const syncService = new TechnogexSyncService(models);
+                const fullResync = Date.now() - lastTechnogexFullResync >= technogexFullResyncIntervalMs;
+                if (fullResync) lastTechnogexFullResync = Date.now();
+                const runs = await syncService.runSync('all', { fullResync });
+                Logger.info(`Technogex sync job finished (fullResync=${fullResync}): ${runs.map((r) => `${r.family}=${r.status}`).join(', ')}`);
+            } catch (err) {
+                Logger.error('Technogex sync job failed:', err);
+            }
+        };
+        setTimeout(runTechnogexSyncJob, 20_000);
+        setInterval(runTechnogexSyncJob, technogexSyncIntervalMs);
+        Logger.info(`Technogex sync job scheduled every ${technogexSyncIntervalMs}ms`);
+
         app.use((req, res) => {
             res.status(404).json({
                 success: false,

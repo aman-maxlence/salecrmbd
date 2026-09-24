@@ -8,8 +8,8 @@ class DepartmentController {
     async createDepartment(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const { name, description, headUserId } = req.body;
-            const department = await this.departmentService.createDepartment(orgId, { name, description, headUserId });
+            const { name, description, headUserId, territoryId } = req.body;
+            const department = await this.departmentService.createDepartment(orgId, { name, description, headUserId, territoryId });
             return res.json(ResponseFormatter.success('Department created successfully', department, 201));
         } catch (err) {
             next(err);
@@ -19,7 +19,8 @@ class DepartmentController {
     async listDepartments(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const departments = await this.departmentService.getDepartments(orgId);
+            const { territoryId } = req.query;
+            const departments = await this.departmentService.getDepartments(orgId, { territoryId });
             return res.json(ResponseFormatter.success('Departments fetched successfully', departments, 200));
         } catch (err) {
             next(err);
@@ -39,8 +40,8 @@ class DepartmentController {
     async updateDepartment(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const { name, description, headUserId, status } = req.body;
-            const department = await this.departmentService.updateDepartment(orgId, req.params.id, { name, description, headUserId, status });
+            const { name, description, headUserId, status, territoryId } = req.body;
+            const department = await this.departmentService.updateDepartment(orgId, req.params.id, { name, description, headUserId, status, territoryId });
             return res.json(ResponseFormatter.success('Department updated successfully', department, 200));
         } catch (err) {
             next(err);

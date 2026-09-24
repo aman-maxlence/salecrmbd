@@ -8,10 +8,11 @@ class TeamController {
     async createTeam(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const { name, departmentId, territoryId, description, managerUserId, memberUserIds } = req.body;
+            const actorUserId = req.user?.id ?? req.userId;
+            const { name, departmentId, description, managerUserId, memberUserIds } = req.body;
             const team = await this.teamService.createTeam(orgId, {
-                name, departmentId, territoryId, description, managerUserId, memberUserIds,
-            });
+                name, departmentId, description, managerUserId, memberUserIds,
+            }, actorUserId);
             return res.json(ResponseFormatter.success('Team created successfully', team, 201));
         } catch (err) {
             next(err);
@@ -42,10 +43,11 @@ class TeamController {
     async updateTeam(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const { name, description, departmentId, territoryId, managerUserId, status, memberUserIds } = req.body;
+            const actorUserId = req.user?.id ?? req.userId;
+            const { name, description, departmentId, managerUserId, status, memberUserIds } = req.body;
             const team = await this.teamService.updateTeam(orgId, req.params.id, {
-                name, description, departmentId, territoryId, managerUserId, status, memberUserIds,
-            });
+                name, description, departmentId, managerUserId, status, memberUserIds,
+            }, actorUserId);
             return res.json(ResponseFormatter.success('Team updated successfully', team, 200));
         } catch (err) {
             next(err);
@@ -55,7 +57,8 @@ class TeamController {
     async deleteTeam(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            await this.teamService.deleteTeam(orgId, req.params.id);
+            const actorUserId = req.user?.id ?? req.userId;
+            await this.teamService.deleteTeam(orgId, req.params.id, actorUserId);
             return res.json(ResponseFormatter.success('Team deleted successfully', null, 200));
         } catch (err) {
             next(err);

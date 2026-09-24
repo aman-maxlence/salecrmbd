@@ -1,10 +1,10 @@
 import { DataTypes } from 'sequelize';
 
 /**
- * A named organizational department (Sales, Marketing, ...), scoped to an
- * org - mirrors Territory.js exactly (same org-scoped-unique-name shape),
- * plus a description and a head, since the "Add Department" form collects
- * both.
+ * A named organizational department (Sales, Marketing, ...), always nested
+ * under exactly one Territory - org hierarchy is Country -> Territory ->
+ * Department -> Team. Mirrors Territory.js's shape, plus a description and
+ * a head, since the "Add Department" form collects both.
  */
 const initializeDepartmentModel = (sequelize) => {
     const Department = sequelize.define('Department', {
@@ -15,6 +15,10 @@ const initializeDepartmentModel = (sequelize) => {
             allowNull: false,
         },
         org_id: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+        },
+        territory_id: {
             type: DataTypes.INTEGER,
             allowNull: false,
         },
@@ -43,7 +47,8 @@ const initializeDepartmentModel = (sequelize) => {
         underscored: true,
         indexes: [
             { fields: ['org_id'] },
-            { fields: ['org_id', 'name'], unique: true },
+            { fields: ['territory_id'] },
+            { fields: ['org_id', 'territory_id', 'name'], unique: true },
         ],
     });
 

@@ -14,8 +14,11 @@ class InvitationController {
             const orgId = req.user?.org?.id;
             const createdByUserId = req.user?.id ?? req.userId;
             const invites = req.body.invites;
-            const created = await this.invitationService.createInvitationsBulk(orgId, invites, createdByUserId);
-            return res.json(ResponseFormatter.success('Invites sent successfully', created, 201));
+            const result = await this.invitationService.createInvitationsBulk(orgId, invites, createdByUserId);
+            const message = result.failed.length === 0
+                ? 'Invites sent successfully'
+                : `${result.created.length} invite${result.created.length === 1 ? '' : 's'} sent, ${result.failed.length} failed`;
+            return res.json(ResponseFormatter.success(message, result, 201));
         } catch (err) {
             next(err);
         }
@@ -34,7 +37,8 @@ class InvitationController {
     async revokeInvite(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const invitation = await this.invitationService.revokeInvitation(orgId, req.params.id);
+            const actorUserId = req.user?.id ?? req.userId;
+            const invitation = await this.invitationService.revokeInvitation(orgId, req.params.id, actorUserId);
             return res.json(ResponseFormatter.success('Invite revoked successfully', invitation, 200));
         } catch (err) {
             next(err);
@@ -44,8 +48,20 @@ class InvitationController {
     async resendInvite(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
-            const invitation = await this.invitationService.resendInvitation(orgId, req.params.id);
+            const actorUserId = req.user?.id ?? req.userId;
+            const invitation = await this.invitationService.resendInvitation(orgId, req.params.id, actorUserId);
             return res.json(ResponseFormatter.success('Invite resent successfully', invitation, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async remindInvite(req, res, next) {
+        try {
+            const orgId = req.user?.org?.id;
+            const actorUserId = req.user?.id ?? req.userId;
+            const invitation = await this.invitationService.sendManualReminder(orgId, req.params.id, actorUserId);
+            return res.json(ResponseFormatter.success('Reminder sent successfully', invitation, 200));
         } catch (err) {
             next(err);
         }

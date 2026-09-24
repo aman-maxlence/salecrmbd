@@ -82,6 +82,15 @@ const initializePortalUserModel = (sequelize) => {
             type:      DataTypes.INTEGER,
             allowNull: true,
         },
+        invited_by_user_id: {
+            // Raw userbd user id of whoever sent the Invitation this row was
+            // created from - null for the org's first user and invite-link
+            // joins. Resolved to a display name via the shared Redis
+            // `users:<id>` cache (see PortalUserService.getInviterName), the
+            // same lookup _attachUserProfiles uses.
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
     }, {
         tableName:   'portal_users',
         timestamps:  true,

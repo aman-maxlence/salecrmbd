@@ -27,6 +27,10 @@ class StockService {
         const item = await this.models.InventoryItem.findOne({ where: { id: payload.itemId, org_id: orgId } });
         if (!item) throw new AppError('Item not found.', 404, ErrorCode.NOT_FOUND);
 
+        if (item.track_inventory === false) {
+            throw new AppError(`"${item.name}" does not track inventory (service item) - it has no stock to adjust.`, 400, ErrorCode.VALIDATION_ERROR);
+        }
+
         const sequelize = this.models.StockLevel.sequelize;
 
         const result = await sequelize.transaction(async (transaction) => {
@@ -83,6 +87,10 @@ class StockService {
                 from_warehouse_id: type === 'transfer' ? payload.fromWarehouseId : (type === 'issue' ? payload.warehouseId : null),
                 to_warehouse_id: type === 'transfer' ? payload.toWarehouseId : (type === 'receive' ? payload.warehouseId : null),
                 reason: payload.reason?.trim() || null,
+                reference_type: payload.referenceType ?? null,
+                reference_id: payload.referenceId ?? null,
+                reference_number: payload.referenceNumber?.trim() || null,
+                status: 'applied',
                 created_by: createdBy ?? null,
             }, { transaction });
 
@@ -91,6 +99,77 @@ class StockService {
 
         await this.alertService.refreshForItem(orgId, item.id);
         return result;
+    }
+
+    /** Manual adjustments only (item/warehouse-level, not transfer): list newest-first for the Adjustments page. */
+    async listAdjustments(orgId) {
+        const { StockAdjustment, InventoryItem, Warehouse } = this.models;
+        return StockAdjustment.findAll({
+            where: { org_id: orgId },
+            include: [
+                { model: InventoryItem, as: 'item', required: false },
+                { model: Warehouse, as: 'fromWarehouse', required: false },
+                { model: Warehouse, as: 'toWarehouse', required: false },
+            ],
+            order: [['created_at', 'DESC']],
+        });
+    }
+
+    /** Records the adjustment's details without moving stock yet - see applyAdjustment(). */
+    async createDraftAdjustment(orgId, payload, createdBy) {
+        const type = payload.type;
+        if (!STOCK_ADJUSTMENT_TYPES.includes(type)) {
+            throw new AppError('Adjustment type must be receive, issue, or transfer.', 400, ErrorCode.VALIDATION_ERROR);
+        }
+        const quantity = toNumber(payload.quantity, NaN);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            throw new AppError('Quantity must be a number greater than 0.', 400, ErrorCode.VALIDATION_ERROR);
+        }
+        const item = await this.models.InventoryItem.findOne({ where: { id: payload.itemId, org_id: orgId } });
+        if (!item) throw new AppError('Item not found.', 404, ErrorCode.NOT_FOUND);
+        if (item.track_inventory === false) {
+            throw new AppError(`"${item.name}" does not track inventory (service item) - it has no stock to adjust.`, 400, ErrorCode.VALIDATION_ERROR);
+        }
+
+        return this.models.StockAdjustment.create({
+            org_id: orgId,
+            item_id: item.id,
+            type,
+            quantity,
+            from_warehouse_id: type === 'transfer' ? payload.fromWarehouseId : (type === 'issue' ? payload.warehouseId : null),
+            to_warehouse_id: type === 'transfer' ? payload.toWarehouseId : (type === 'receive' ? payload.warehouseId : null),
+            reason: payload.reason?.trim() || null,
+            reference_type: payload.referenceType ?? null,
+            reference_id: payload.referenceId ?? null,
+            reference_number: payload.referenceNumber?.trim() || null,
+            status: 'draft',
+            created_by: createdBy ?? null,
+        });
+    }
+
+    /** Applies a previously-drafted adjustment: moves stock via the normal adjust() path, then flips the same row to 'applied'. */
+    async applyAdjustment(orgId, id, createdBy) {
+        const draft = await this.models.StockAdjustment.findOne({ where: { id, org_id: orgId } });
+        if (!draft) throw new AppError('Adjustment not found.', 404, ErrorCode.NOT_FOUND);
+        if (draft.status !== 'draft') {
+            throw new AppError('This adjustment has already been applied.', 409, ErrorCode.CONFLICT);
+        }
+
+        await this.adjust(orgId, {
+            type: draft.type,
+            itemId: draft.item_id,
+            quantity: draft.quantity,
+            warehouseId: draft.type === 'receive' ? draft.to_warehouse_id : draft.from_warehouse_id,
+            fromWarehouseId: draft.from_warehouse_id,
+            toWarehouseId: draft.to_warehouse_id,
+            reason: draft.reason,
+            referenceType: draft.reference_type,
+            referenceId: draft.reference_id,
+            referenceNumber: draft.reference_number,
+        }, createdBy);
+
+        await draft.destroy();
+        return this.listAdjustments(orgId);
     }
 
     async _assertWarehouse(orgId, warehouseId) {

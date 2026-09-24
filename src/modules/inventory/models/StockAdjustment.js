@@ -36,6 +36,25 @@ const initializeStockAdjustmentModel = (sequelize) => {
             type:      DataTypes.STRING(500),
             allowNull: true,
         },
+        reference_type: {
+            type:      DataTypes.STRING(50),
+            allowNull: true,
+            comment:   'e.g. "purchase_order" / "sales_order" - what caused this movement',
+        },
+        reference_id: {
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
+        reference_number: {
+            type:      DataTypes.STRING(50),
+            allowNull: true,
+        },
+        status: {
+            type:         DataTypes.ENUM('draft', 'applied'),
+            allowNull:    false,
+            defaultValue: 'applied',
+            comment:      'draft rows are recorded but have not moved stock yet - see StockService.createDraftAdjustment/applyAdjustment',
+        },
         created_by: {
             type:      DataTypes.INTEGER,
             allowNull: true,

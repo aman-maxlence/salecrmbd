@@ -16,12 +16,14 @@ export async function initializeDealRoutes() {
 
         const viewDeals = PermissionMiddleware(['view_all_deals', 'manage_pipeline']);
         const manageDeals = PermissionMiddleware(['view_all_deals', 'manage_pipeline']);
-        const attachItem = PermissionMiddleware(['view_inventory', 'manage_inventory']);
+        const attachItem = PermissionMiddleware(['view_inventory', 'manage_inventory', 'view_technogex_catalog']);
 
         router.get('/', AuthMiddleware, viewDeals, (req, res, next) => dealController.listDeals(req, res, next));
         router.post('/', AuthMiddleware, manageDeals, (req, res, next) => dealController.createDeal(req, res, next));
         router.get('/:id', AuthMiddleware, viewDeals, (req, res, next) => dealController.getDeal(req, res, next));
+        router.put('/:id', AuthMiddleware, manageDeals, (req, res, next) => dealController.updateDeal(req, res, next));
         router.post('/:id/line-items', AuthMiddleware, viewDeals, attachItem, (req, res, next) => dealController.addLineItem(req, res, next));
+        router.put('/:id/line-items/:lineId', AuthMiddleware, viewDeals, attachItem, (req, res, next) => dealController.updateLineItem(req, res, next));
         router.delete('/:id/line-items/:lineId', AuthMiddleware, viewDeals, attachItem, (req, res, next) => dealController.removeLineItem(req, res, next));
 
         Logger.info('Deal routes registered');

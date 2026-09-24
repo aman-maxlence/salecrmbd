@@ -7,6 +7,9 @@ import initializeItemPriceHistoryModel from './ItemPriceHistory.js';
 import initializeStockLevelModel from './StockLevel.js';
 import initializeStockAdjustmentModel from './StockAdjustment.js';
 import initializeLowStockAlertModel from './LowStockAlert.js';
+import initializeItemCategoryModel from './ItemCategory.js';
+import initializeItemBrandModel from './ItemBrand.js';
+import initializeItemManufacturerModel from './ItemManufacturer.js';
 
 export const initializeInventoryModels = (sequelize) => {
     const InventorySettings = initializeInventorySettingsModel(sequelize);
@@ -18,6 +21,9 @@ export const initializeInventoryModels = (sequelize) => {
     const StockLevel = initializeStockLevelModel(sequelize);
     const StockAdjustment = initializeStockAdjustmentModel(sequelize);
     const LowStockAlert = initializeLowStockAlertModel(sequelize);
+    const ItemCategory = initializeItemCategoryModel(sequelize);
+    const ItemBrand = initializeItemBrandModel(sequelize);
+    const ItemManufacturer = initializeItemManufacturerModel(sequelize);
 
     return {
         InventorySettings,
@@ -29,6 +35,9 @@ export const initializeInventoryModels = (sequelize) => {
         StockLevel,
         StockAdjustment,
         LowStockAlert,
+        ItemCategory,
+        ItemBrand,
+        ItemManufacturer,
     };
 };
 

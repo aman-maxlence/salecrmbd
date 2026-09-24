@@ -49,9 +49,10 @@ export class WebhookController {
         } catch (error) {
             Logger.error('[WebhookController] Error in handleInviteAccepted:', error.message);
             await this.webhookService.logWebhookEvent('INVITE_ACCEPTED', req.body, 'error', { error: error.message });
-            return res.status(500).json({
+            return res.status(error.statusCode || 500).json({
                 success: false,
-                error: error.message || 'Failed to process webhook',
+                error: error.code || 'INVITE_ACCEPTED_FAILED',
+                message: error.message || 'Failed to process webhook',
             });
         }
     }
@@ -74,9 +75,10 @@ export class WebhookController {
         } catch (error) {
             Logger.error('[WebhookController] Error in handleOrgInviteLinkJoined:', error.message);
             await this.webhookService.logWebhookEvent('ORG_INVITE_LINK_JOINED', req.body, 'error', { error: error.message });
-            return res.status(500).json({
+            return res.status(error.statusCode || 500).json({
                 success: false,
-                error: error.message || 'Failed to process webhook',
+                error: error.code || 'ORG_INVITE_LINK_JOINED_FAILED',
+                message: error.message || 'Failed to process webhook',
             });
         }
     }

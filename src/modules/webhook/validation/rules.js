@@ -5,6 +5,7 @@ export const adminSetupValidation = [
     body('userId').notEmpty().withMessage('userId is required').isInt({ min: 1 }),
     body('orgId').notEmpty().withMessage('orgId is required').isInt({ min: 1 }),
     body('event').trim().notEmpty().equals('SETUP_ADMIN_USER'),
+    body('timestamp').trim().notEmpty().isISO8601(),
 ];
 
 export const inviteAcceptanceValidation = [

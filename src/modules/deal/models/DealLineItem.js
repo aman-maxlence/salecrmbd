@@ -18,7 +18,23 @@ const initializeDealLineItemModel = (sequelize) => {
         },
         item_id: {
             type:      DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
+            comment:   'Null when source_type is not \'local\' - see source_type/source_ref_id.',
+        },
+        source_type: {
+            type:         DataTypes.ENUM('local', 'technogex_product_package', 'technogex_design_item', 'technogex_value_pack_tier'),
+            allowNull:    false,
+            defaultValue: 'local',
+        },
+        source_ref_id: {
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+            comment:   'FK to the mirror table named by source_type (technogex_product_packages/technogex_design_items/technogex_value_pack_tiers.id) - resolved in application code, no single-column DB FK since it can point at three different tables.',
+        },
+        source_meta: {
+            type:      DataTypes.JSON,
+            allowNull: true,
+            comment:   'Frozen snapshot of what was picked at add-time (tier name, duration, country, currency, display price) so this line stays accurate even if the mirrored catalog row later changes or is marked source_deleted_at.',
         },
         quantity: {
             type:      DataTypes.DECIMAL(14, 4),

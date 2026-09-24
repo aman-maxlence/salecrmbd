@@ -1,8 +1,6 @@
 import AppError from '../../../errors/AppError.js';
 import { ErrorCode } from '../../../errors/index.js';
 import {
-    CATALOG_FIELD_KEYS,
-    DEFAULT_CATALOG_FIELDS,
     DEFAULT_LOW_STOCK_THRESHOLD,
     DEFAULT_PRICING_TIERS,
     DEFAULT_UOMS,
@@ -23,7 +21,6 @@ class InventorySettingsService {
             where: { org_id: orgId },
             defaults: {
                 org_id: orgId,
-                catalog_fields: DEFAULT_CATALOG_FIELDS,
                 low_stock_threshold: DEFAULT_LOW_STOCK_THRESHOLD,
                 reorder_alerts_enabled: true,
             },
@@ -74,9 +71,6 @@ class InventorySettingsService {
         const { InventorySettings } = this.models;
         const settings = await InventorySettings.findOne({ where: { org_id: orgId } });
 
-        if (payload.catalogFields !== undefined) {
-            settings.catalog_fields = this._normalizeCatalogFields(payload.catalogFields);
-        }
         if (payload.lowStockThreshold !== undefined) {
             const threshold = toNumber(payload.lowStockThreshold, NaN);
             if (!Number.isFinite(threshold) || threshold < 0) {
@@ -91,18 +85,22 @@ class InventorySettingsService {
         return this.getBundle(orgId);
     }
 
-    _normalizeCatalogFields(input) {
-        const merged = { ...DEFAULT_CATALOG_FIELDS };
-        for (const key of CATALOG_FIELD_KEYS) {
-            const incoming = input?.[key] ?? {};
-            merged[key] = {
-                label: incoming.label || DEFAULT_CATALOG_FIELDS[key].label,
-                enabled: incoming.enabled !== false,
-                required: key === 'name' ? true : Boolean(incoming.required),
-            };
-            if (merged[key].required) merged[key].enabled = true;
-        }
-        return merged;
+    /**
+     * Admin-facing "restart" for Inventory Initialization checklist item #11
+     * - mirrors OnboardingService's resetOnboardingStepAsAdmin in spirit, but
+     * scoped to just the config TOGGLES (threshold, alerts), not real
+     * business data. Warehouses/UOMs/pricing tiers are never touched here -
+     * items and stock may already reference them, so wiping those back to
+     * just the 3 defaults would risk orphaning real records.
+     */
+    async resetToDefaults(orgId) {
+        await this.ensureDefaults(orgId);
+        const { InventorySettings } = this.models;
+        const settings = await InventorySettings.findOne({ where: { org_id: orgId } });
+        settings.low_stock_threshold = DEFAULT_LOW_STOCK_THRESHOLD;
+        settings.reorder_alerts_enabled = true;
+        await settings.save();
+        return this.getBundle(orgId);
     }
 
     async createUom(orgId, { name, abbreviation }) {
@@ -191,6 +189,19 @@ class InventorySettingsService {
             throw new AppError(`This pricing tier is still used by ${inUse} item(s).`, 409, ErrorCode.CONFLICT);
         }
         await row.destroy();
+    }
+
+    async listWarehouses(orgId) {
+        await this.ensureDefaults(orgId);
+        const { Warehouse } = this.models;
+        return Warehouse.findAll({ where: { org_id: orgId }, order: [['name', 'ASC']] });
+    }
+
+    async getWarehouse(orgId, id) {
+        const { Warehouse } = this.models;
+        const row = await Warehouse.findOne({ where: { id, org_id: orgId } });
+        if (!row) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+        return row;
     }
 
     async createWarehouse(orgId, { name, code, location }) {

@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { DEFAULT_CATALOG_FIELDS, DEFAULT_LOW_STOCK_THRESHOLD } from '../../../constants/inventory.js';
+import { DEFAULT_LOW_STOCK_THRESHOLD } from '../../../constants/inventory.js';
 
 const initializeInventorySettingsModel = (sequelize) => {
     const InventorySettings = sequelize.define('InventorySettings', {
@@ -12,11 +12,6 @@ const initializeInventorySettingsModel = (sequelize) => {
         org_id: {
             type:      DataTypes.INTEGER,
             allowNull: false,
-        },
-        catalog_fields: {
-            type:         DataTypes.JSON,
-            allowNull:    false,
-            defaultValue: DEFAULT_CATALOG_FIELDS,
         },
         low_stock_threshold: {
             type:         DataTypes.DECIMAL(14, 4),

@@ -30,6 +30,15 @@ const initializeDealModel = (sequelize) => {
             type:      DataTypes.INTEGER,
             allowNull: true,
         },
+        territory_id: {
+            // Not a hard FK - a cleared/deleted territory should degrade to
+            // "no territory" rather than blocking the territory's own
+            // deletion (same convention as BusinessPreferences.default_territory_id).
+            // Defaults from that same org-wide setting at creation time if
+            // not explicitly provided (see DealService.createDeal).
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
     }, {
         tableName:   'deals',
         timestamps:  true,

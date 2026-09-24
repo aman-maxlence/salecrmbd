@@ -18,17 +18,29 @@ class CompanyDetailsController {
     async updateDetails(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
+            const actorUserId = req.user?.id ?? req.userId;
             const {
-                phone, email, website, companyName, vatId, address, city, state,
+                phone, email, website, companyName, vatId, industry, businessType,
+                address, city, state, country, postalCode,
                 bankName, bankAddress, bankRoutingNumber, bankAccountHolderName,
                 bankAccountNumber, iban, swiftCode, bic,
+                isDraft,
             } = req.body;
-            const details = await this.companyDetailsService.update(orgId, {
-                phone, email, website, companyName, vatId, address, city, state,
-                bankName, bankAddress, bankRoutingNumber, bankAccountHolderName,
-                bankAccountNumber, iban, swiftCode, bic,
-            });
-            return res.json(ResponseFormatter.success('Company details updated successfully', details, 200));
+            const details = await this.companyDetailsService.update(
+                orgId,
+                {
+                    phone, email, website, companyName, vatId, industry, businessType,
+                    address, city, state, country, postalCode,
+                    bankName, bankAddress, bankRoutingNumber, bankAccountHolderName,
+                    bankAccountNumber, iban, swiftCode, bic,
+                },
+                { isDraft: Boolean(isDraft), actorUserId }
+            );
+            return res.json(ResponseFormatter.success(
+                isDraft ? 'Company details saved as draft' : 'Company details updated successfully',
+                details,
+                200
+            ));
         } catch (err) {
             next(err);
         }

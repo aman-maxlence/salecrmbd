@@ -17,6 +17,13 @@ const initializeTerritoryModel = (sequelize) => {
             type:      DataTypes.INTEGER,
             allowNull: false,
         },
+        country_id: {
+            // Nullable so existing territories created before Country
+            // existed aren't broken - a new territory should pick one, but
+            // it isn't enforced at the DB level.
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
         name: {
             type:      DataTypes.STRING(255),
             allowNull: false,

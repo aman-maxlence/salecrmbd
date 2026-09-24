@@ -11,7 +11,9 @@ const router = express.Router();
 /**
  * Mounted at /api/org/:orgId/company-details. GET has no permission gate
  * beyond auth - same reasoning as workspace-settings. Only the write needs
- * manage_organization_settings.
+ * manage_company_details - a distinct permission from workspace-settings'
+ * manage_organization_settings, since this is legal/billing data, not
+ * branding/personalisation (see constants/permissions.js comment).
  */
 export async function initializeCompanyDetailsRoutes() {
     try {
@@ -20,7 +22,7 @@ export async function initializeCompanyDetailsRoutes() {
         const companyDetailsController = new CompanyDetailsController(companyDetailsService);
 
         router.get('/', AuthMiddleware, (req, res, next) => companyDetailsController.getDetails(req, res, next));
-        router.put('/', AuthMiddleware, PermissionMiddleware('manage_organization_settings'), (req, res, next) => companyDetailsController.updateDetails(req, res, next));
+        router.put('/', AuthMiddleware, PermissionMiddleware('manage_company_details'), (req, res, next) => companyDetailsController.updateDetails(req, res, next));
 
         Logger.info('Company details routes registered');
         return router;

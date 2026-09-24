@@ -36,10 +36,28 @@ class DealController {
         }
     }
 
+    async updateDeal(req, res, next) {
+        try {
+            const deal = await this.dealService.updateDeal(this._orgId(req), req.params.id, req.body, req.user?.id ?? req.userId);
+            return res.json(ResponseFormatter.success('Deal updated successfully', deal, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async addLineItem(req, res, next) {
         try {
             const deal = await this.dealService.addLineItem(this._orgId(req), req.params.id, req.body);
             return res.json(ResponseFormatter.success('Item added to deal', deal, 201));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async updateLineItem(req, res, next) {
+        try {
+            const deal = await this.dealService.updateLineItem(this._orgId(req), req.params.id, req.params.lineId, req.body);
+            return res.json(ResponseFormatter.success('Line item updated', deal, 200));
         } catch (err) {
             next(err);
         }

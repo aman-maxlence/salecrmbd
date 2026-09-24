@@ -83,18 +83,27 @@ export class S3UploadService {
     }
 
     /**
-     * @example generateS3Key(14, 'workspace-logo', 'logo.png') -> "workspace-logo/org-14/1770604983960-abc123.png"
+     * All Sale CRM uploads live under one `sales_crm/` prefix in the shared
+     * `tecnogex` DigitalOcean Spaces bucket (also used by userbd/maxpmbd) -
+     * keeps this app's files out of the way of everything else in that bucket.
+     * @example generateS3Key(14, 'workspace-logo', 'logo.png') -> "sales_crm/workspace-logo/org-14/1770604983960-abc123.png"
      */
     generateS3Key(orgId, folder, filename) {
         const timestamp = Date.now();
         const randomId = Math.random().toString(36).substring(2, 8);
         const fileExtension = filename.split('.').pop();
-        return `${folder}/org-${orgId}/${timestamp}-${randomId}.${fileExtension}`;
+        return `sales_crm/${folder}/org-${orgId}/${timestamp}-${randomId}.${fileExtension}`;
     }
 
     async getSignedUploadUrlForWorkspaceLogo(orgId, filename, contentType) {
         const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
         const key = this.generateS3Key(orgId, 'workspace-logo', filename);
+        return this.getSignedUploadUrl(key, contentType, allowedMimeTypes);
+    }
+
+    async getSignedUploadUrlForItemImage(orgId, filename, contentType) {
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        const key = this.generateS3Key(orgId, 'inventory-item', filename);
         return this.getSignedUploadUrl(key, contentType, allowedMimeTypes);
     }
 

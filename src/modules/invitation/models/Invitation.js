@@ -33,6 +33,17 @@ const initializeInvitationModel = (sequelize) => {
             type:      DataTypes.INTEGER,
             allowNull: true,
         },
+        team_id: {
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
+        invitee_name: {
+            // Optional - the invitee always supplies their own real name on
+            // About You anyway, this just lets the inviter label the row
+            // before it's accepted.
+            type:      DataTypes.STRING(255),
+            allowNull: true,
+        },
         status: {
             type:         DataTypes.ENUM('pending', 'accepted', 'revoked'),
             allowNull:    false,
@@ -49,6 +60,17 @@ const initializeInvitationModel = (sequelize) => {
         created_by: {
             type:      DataTypes.INTEGER,
             allowNull: false,
+        },
+        reminder_count: {
+            // "Send invitation reminders where applicable" - how many nudge
+            // emails this still-pending invite has had (auto or manual).
+            type:         DataTypes.INTEGER,
+            allowNull:    false,
+            defaultValue: 0,
+        },
+        last_reminder_sent_at: {
+            type:      DataTypes.DATE,
+            allowNull: true,
         },
     }, {
         tableName:   'invitations',
