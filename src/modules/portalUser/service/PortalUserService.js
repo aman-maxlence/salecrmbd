@@ -257,6 +257,12 @@ class PortalUserService {
             }
             portalUser.role_id = roleId;
         }
+        // The org owner also can't be pulled into the regular hierarchy
+        // (territory/team/manager) from this same endpoint - they sit above
+        // it, the same reason their role itself can't be reassigned above.
+        if (portalUser.is_dual_access && (territoryId !== undefined || teamId !== undefined || managerId !== undefined)) {
+            throw new AppError("The organization owner's hierarchy placement cannot be changed.", 403, ErrorCode.FORBIDDEN);
+        }
         if (territoryId !== undefined) {
             portalUser.territory_id = territoryId;
         }
