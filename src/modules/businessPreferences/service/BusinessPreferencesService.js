@@ -3,7 +3,7 @@ import AuditLogService from '../../auditLog/service/AuditLogService.js';
 import CatalogLookupService from '../../inventory/service/CatalogLookupService.js';
 import { PRODUCT_CATEGORY_LABELS } from '../../../constants/productCategories.js';
 
-const FIELDS = ['enabledModules', 'productCategories', 'defaultTerritoryId', 'defaultCurrency', 'businessHours'];
+const FIELDS = ['enabledModules', 'productCategories', 'defaultTerritoryId', 'defaultCurrency', 'businessHours', 'allowMultipleTeams'];
 
 const COLUMN_BY_FIELD = {
     enabledModules: 'enabled_modules',
@@ -11,6 +11,7 @@ const COLUMN_BY_FIELD = {
     defaultTerritoryId: 'default_territory_id',
     defaultCurrency: 'default_currency',
     businessHours: 'business_hours',
+    allowMultipleTeams: 'allow_multiple_teams',
 };
 
 const columnFor = (field) => COLUMN_BY_FIELD[field] || field;

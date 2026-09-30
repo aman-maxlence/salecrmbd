@@ -1,6 +1,7 @@
 import AppError from '../../../errors/AppError.js';
 import { ErrorCode } from '../../../errors/index.js';
-import { toNumber } from '../../../constants/inventory.js';
+import { assertWarehouseInScope } from '../../../utils/countryScope.js';
+import { toNumber, resolveQuantityBreakPrice } from '../../../constants/inventory.js';
 import TechnogexCatalogService from '../../technogex/service/TechnogexCatalogService.js';
 import NotificationService from '../../notifications/service/NotificationService.js';
 import BusinessPreferencesService from '../../businessPreferences/service/BusinessPreferencesService.js';
@@ -110,7 +111,7 @@ class DealService {
         return this.getDeal(orgId, dealId);
     }
 
-    async addLineItem(orgId, dealId, payload) {
+    async addLineItem(orgId, dealId, payload, countryScope) {
         const deal = await this.getDeal(orgId, dealId);
         const quantity = toNumber(payload.quantity, NaN);
         if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -139,7 +140,8 @@ class DealService {
         });
         if (!item) throw new AppError('Inventory item not found.', 404, ErrorCode.NOT_FOUND);
 
-        let unitPrice = toNumber(item.unit_price);
+        const priceBreaks = await this.models.ItemQuantityPriceBreak.findAll({ where: { org_id: orgId, item_id: item.id } });
+        let unitPrice = resolveQuantityBreakPrice(priceBreaks, quantity, toNumber(item.unit_price));
         let pricingTierId = payload.pricingTierId || item.pricing_tier_id || null;
         if (pricingTierId) {
             const tier = await this.models.PricingTier.findOne({ where: { id: pricingTierId, org_id: orgId } });
@@ -151,10 +153,7 @@ class DealService {
         }
 
         if (payload.warehouseId) {
-            const warehouse = await this.models.Warehouse.findOne({
-                where: { id: payload.warehouseId, org_id: orgId },
-            });
-            if (!warehouse) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+            await assertWarehouseInScope(this.models, orgId, payload.warehouseId, countryScope, { status: 'active' });
         }
 
         const line = await this.models.DealLineItem.create({
@@ -177,7 +176,7 @@ class DealService {
      * without deleting and re-adding it (losing whatever source/pricing-tier
      * context the original add had resolved).
      */
-    async updateLineItem(orgId, dealId, lineId, { quantity, unitPrice, warehouseId, pricingTierId }) {
+    async updateLineItem(orgId, dealId, lineId, { quantity, unitPrice, warehouseId, pricingTierId }, countryScope) {
         await this.getDeal(orgId, dealId);
         const line = await this.models.DealLineItem.findOne({
             where: { id: lineId, deal_id: dealId, org_id: orgId },
@@ -194,8 +193,7 @@ class DealService {
 
         if (warehouseId !== undefined) {
             if (warehouseId) {
-                const warehouse = await this.models.Warehouse.findOne({ where: { id: warehouseId, org_id: orgId } });
-                if (!warehouse) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+                await assertWarehouseInScope(this.models, orgId, warehouseId, countryScope, { status: 'active' });
             }
             line.warehouse_id = warehouseId || null;
         }

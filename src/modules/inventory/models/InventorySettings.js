@@ -23,6 +23,21 @@ const initializeInventorySettingsModel = (sequelize) => {
             allowNull:    false,
             defaultValue: true,
         },
+        // "Configure SKU structure" - an auto-generated SKU (when the item
+        // form is left blank) is built as `${sku_prefix}${sku_next_number}`,
+        // zero-padded. sku_next_number advances every time an auto-SKU is
+        // actually generated (see ItemService.createItem) - not on every
+        // create, since a manually-typed SKU shouldn't burn a number.
+        sku_prefix: {
+            type:         DataTypes.STRING(20),
+            allowNull:    false,
+            defaultValue: 'SKU-',
+        },
+        sku_next_number: {
+            type:         DataTypes.INTEGER,
+            allowNull:    false,
+            defaultValue: 1,
+        },
     }, {
         tableName:   'inventory_settings',
         timestamps:  true,

@@ -86,7 +86,7 @@ export class WebhookService {
      * pending Invitation row to match against here - the role/territory
      * come straight off the matching local InviteLink row instead.
      */
-    async handleOrgInviteLinkJoined({ userId, orgId, emailId, linkToken }) {
+    async handleOrgInviteLinkJoined({ userId, orgId, emailId, linkToken, newLinkToken }) {
         const rep = await this.salesRepService.createOrGetMember(userId, orgId);
 
         const inviteLink = await this.models.InviteLink.findOne({
@@ -103,6 +103,11 @@ export class WebhookService {
                 roleId: inviteLink.role_id,
                 territoryId: inviteLink.territory_id,
             });
+
+            // This single-use invite link was consumed! Mark it as revoked/used so it cannot be reused
+            inviteLink.status = 'revoked';
+            await inviteLink.save();
+            Logger.info(`[WebhookService] Invite link for org ${orgId} (token ${linkToken}) marked as used after join by user ${userId}`);
         }
 
         Logger.info(`[WebhookService] SalesRep ready for org ${orgId}, user ${userId} <${emailId}> via invite link (id=${rep.id}, role=member)`);

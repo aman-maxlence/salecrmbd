@@ -38,7 +38,9 @@ class InvitationService {
     /**
      * Notifies userbd of a new invite so it can issue the token, send the
      * invite email, and enforce seat limits - the same call maxpmbd's
-     * InviteService.requestUserServiceInvite makes. Returns userbd's invite id.
+     * InviteService.requestUserServiceInvite makes. Returns userbd's invite id
+     * plus the accept-invite URL it constructed (same one it emails the
+     * invitee), so the admin can also copy/share it directly.
      */
     async _requestUserServiceInvite(orgId, email, invitingUserId, message) {
         const url = `${config.userService.url}/api/users/organizations/${orgId}/invites`;
@@ -51,7 +53,11 @@ class InvitationService {
                     headers: { Authorization: `Bearer ${config.userService.apiToken}` },
                 }
             );
-            return response.data?.data?.inviteId ?? response.data?.data?.invite?.id ?? null;
+            const data = response.data?.data ?? {};
+            return {
+                inviteId: data.inviteId ?? data.invite?.id ?? null,
+                inviteUrl: data.inviteUrl ?? null,
+            };
         } catch (err) {
             if (err.response) {
                 throw new AppError(
@@ -67,11 +73,15 @@ class InvitationService {
     async _requestUserServiceResend(inviteId, orgId) {
         const url = `${config.userService.url}/api/users/invites/${inviteId}/resend`;
         try {
-            await axios.post(
+            const response = await axios.post(
                 url,
                 { org_id: orgId },
                 { headers: { Authorization: `Bearer ${config.userService.apiToken}` } }
             );
+            // Resend rotates the token, invalidating the old link - the
+            // stored invite_url must be refreshed to match or a copied "old"
+            // link would silently 404/expire against a token that's no longer live.
+            return { inviteUrl: response.data?.data?.inviteUrl ?? null };
         } catch (err) {
             if (err.response) {
                 throw new AppError(
@@ -81,6 +91,29 @@ class InvitationService {
                 );
             }
             throw new AppError(`Failed to resend invite: ${err.message}`, 502, ErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
+
+    /**
+     * Best-effort (never throws): tells userbd to cancel its own Invite row
+     * too, so a revoked-here invite doesn't leave a stale "pending" row on
+     * userbd's side that then blocks re-inviting the same email (that gap is
+     * exactly what caused a real "invite already sent" false-positive - the
+     * local Invitation was revoked but userbd never heard about it). Kept
+     * non-critical since the local revoke is the source of truth for what
+     * the admin actually asked for; userbd being unreachable shouldn't block it.
+     */
+    async _requestUserServiceRevoke(inviteId, orgId, actorUserId) {
+        if (!inviteId) return;
+        const url = `${config.userService.url}/api/users/invites/${inviteId}`;
+        try {
+            await axios.delete(url, {
+                params: { user_id: actorUserId },
+                data: { orgId },
+                headers: { Authorization: `Bearer ${config.userService.apiToken}` },
+            });
+        } catch (err) {
+            Logger.warn(`[InvitationService] Failed to sync revoke to user service (non-critical): ${err.response?.data?.message || err.message}`);
         }
     }
 
@@ -169,8 +202,9 @@ class InvitationService {
                 { transaction }
             );
 
-            const userServiceInviteId = await this._requestUserServiceInvite(orgId, email, createdByUserId, message);
+            const { inviteId: userServiceInviteId, inviteUrl } = await this._requestUserServiceInvite(orgId, email, createdByUserId, message);
             invitation.user_service_invite_id = userServiceInviteId ? String(userServiceInviteId) : null;
+            invitation.invite_url = inviteUrl ?? null;
             await invitation.save({ transaction });
 
             return invitation;
@@ -279,6 +313,7 @@ class InvitationService {
         }
         invitation.status = 'revoked';
         await invitation.save();
+        await this._requestUserServiceRevoke(invitation.user_service_invite_id, orgId, actorUserId);
         await this.auditLogService.record(orgId, actorUserId, 'invitation.revoked', {
             entityType: 'invitation', entityId: invitation.id, details: { email: invitation.email },
         });
@@ -363,7 +398,9 @@ class InvitationService {
         if (!invitation.user_service_invite_id) {
             throw new AppError('This invite has no user-service reference to resend.', 409, ErrorCode.CONFLICT);
         }
-        await this._requestUserServiceResend(invitation.user_service_invite_id, orgId);
+        const { inviteUrl } = await this._requestUserServiceResend(invitation.user_service_invite_id, orgId);
+        invitation.invite_url = inviteUrl ?? invitation.invite_url;
+        await invitation.save();
         await this.auditLogService.record(orgId, actorUserId, 'invitation.resent', {
             entityType: 'invitation', entityId: invitation.id, details: { email: invitation.email },
         });

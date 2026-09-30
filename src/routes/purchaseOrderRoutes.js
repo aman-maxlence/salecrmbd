@@ -2,6 +2,7 @@ import express from 'express';
 import { Database } from '../models/index.js';
 import AuthMiddleware from '../middleware/AuthMiddleware.js';
 import PermissionMiddleware from '../middleware/PermissionMiddleware.js';
+import CountryScopeMiddleware from '../middleware/CountryScopeMiddleware.js';
 import PurchaseOrderService from '../modules/purchasing/service/PurchaseOrderService.js';
 import PurchaseOrderController from '../modules/purchasing/controller/PurchaseOrderController.js';
 import Logger from '../utils/Logger.js';
@@ -19,7 +20,7 @@ export async function initializePurchaseOrderRoutes() {
         const receive = PermissionMiddleware('receive_purchase_orders');
 
         router.get('/', AuthMiddleware, view, (req, res, next) => controller.list(req, res, next));
-        router.post('/', AuthMiddleware, manage, (req, res, next) => controller.create(req, res, next));
+        router.post('/', AuthMiddleware, manage, CountryScopeMiddleware, (req, res, next) => controller.create(req, res, next));
         router.get('/:id', AuthMiddleware, view, (req, res, next) => controller.getById(req, res, next));
         router.post('/:id/cancel', AuthMiddleware, manage, (req, res, next) => controller.cancel(req, res, next));
         router.post('/:id/receive', AuthMiddleware, receive, (req, res, next) => controller.receive(req, res, next));

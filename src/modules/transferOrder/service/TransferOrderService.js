@@ -2,6 +2,7 @@ import AppError from '../../../errors/AppError.js';
 import { ErrorCode } from '../../../errors/index.js';
 import { toNumber } from '../../../constants/inventory.js';
 import StockService from '../../inventory/service/StockService.js';
+import { assertWarehouseInScope } from '../../../utils/countryScope.js';
 
 class TransferOrderService {
     constructor(models) {
@@ -27,8 +28,8 @@ class TransferOrderService {
         return this._find(orgId, id, true);
     }
 
-    async create(orgId, { fromWarehouseId, toWarehouseId, notes, lines }, createdBy) {
-        const { TransferOrder, TransferOrderLineItem, Warehouse, InventoryItem } = this.models;
+    async create(orgId, { fromWarehouseId, toWarehouseId, notes, lines }, createdBy, countryScope) {
+        const { TransferOrder, TransferOrderLineItem, InventoryItem } = this.models;
 
         if (!fromWarehouseId || !toWarehouseId || Number(fromWarehouseId) === Number(toWarehouseId)) {
             throw new AppError('Two different warehouses are required.', 400, ErrorCode.VALIDATION_ERROR);
@@ -37,10 +38,8 @@ class TransferOrderService {
             throw new AppError('At least one line item is required.', 400, ErrorCode.VALIDATION_ERROR);
         }
 
-        const from = await Warehouse.findOne({ where: { id: fromWarehouseId, org_id: orgId, status: 'active' } });
-        if (!from) throw new AppError('Source warehouse not found.', 404, ErrorCode.NOT_FOUND);
-        const to = await Warehouse.findOne({ where: { id: toWarehouseId, org_id: orgId, status: 'active' } });
-        if (!to) throw new AppError('Destination warehouse not found.', 404, ErrorCode.NOT_FOUND);
+        await assertWarehouseInScope(this.models, orgId, fromWarehouseId, countryScope, { status: 'active' });
+        await assertWarehouseInScope(this.models, orgId, toWarehouseId, countryScope, { status: 'active' });
 
         const normalizedLines = [];
         for (const line of lines) {

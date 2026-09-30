@@ -1,3 +1,13 @@
+// Render's env var dashboard stores whatever is pasted in verbatim - unlike
+// dotenv parsing a local .env file, it never strips wrapping quotes. This
+// repo's env files quote several values (see MAILER_PASS, DIGITALOCEAN_*,
+// CRM_SYNC_API_KEY in userbd/salecrmbd's .env) as a matter of habit, and that
+// habit breaking a pasted-into-Render value is exactly what took down invite
+// creation once already (USER_SERVICE_URL ending up as "'https://...'",
+// which `new URL()` rejects outright as "Invalid URL"). Stripping a leading
+// and trailing matching quote here is a no-op for a correctly-set env var.
+const stripQuotes = (value) => (typeof value === 'string' ? value.replace(/^['"]|['"]$/g, '').trim() : value);
+
 const config = {
     app: {
         port: process.env.PORT || 3003,
@@ -49,8 +59,8 @@ const config = {
 
     // User Service (central auth/org/billing/product registry)
     userService: {
-        apiToken: process.env.USER_SERVICE_API_TOKEN || '',
-        url: process.env.USER_SERVICE_URL || 'http://host.docker.internal:3001',
+        apiToken: stripQuotes(process.env.USER_SERVICE_API_TOKEN) || '',
+        url: stripQuotes(process.env.USER_SERVICE_URL) || 'http://host.docker.internal:3001',
     },
 
     // Technogex (separate e-commerce product - catalog sync only, no auth/org ties)

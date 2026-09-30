@@ -21,6 +21,11 @@ const initializeItemCategoryModel = (sequelize) => {
             type:      DataTypes.INTEGER,
             allowNull: true,
         },
+        status: {
+            type:         DataTypes.ENUM('active', 'inactive'),
+            allowNull:    false,
+            defaultValue: 'active',
+        },
     }, {
         tableName:   'inventory_item_categories',
         timestamps:  true,

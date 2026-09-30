@@ -2,6 +2,7 @@ import express from 'express';
 import { Database } from '../models/index.js';
 import AuthMiddleware from '../middleware/AuthMiddleware.js';
 import PermissionMiddleware from '../middleware/PermissionMiddleware.js';
+import CountryScopeMiddleware from '../middleware/CountryScopeMiddleware.js';
 import TransferOrderService from '../modules/transferOrder/service/TransferOrderService.js';
 import TransferOrderController from '../modules/transferOrder/controller/TransferOrderController.js';
 import Logger from '../utils/Logger.js';
@@ -25,7 +26,7 @@ export async function initializeTransferOrderRoutes() {
         const move = PermissionMiddleware('adjust_stock');
 
         router.get('/', AuthMiddleware, view, (req, res, next) => controller.list(req, res, next));
-        router.post('/', AuthMiddleware, manage, (req, res, next) => controller.create(req, res, next));
+        router.post('/', AuthMiddleware, manage, CountryScopeMiddleware, (req, res, next) => controller.create(req, res, next));
         router.get('/:id', AuthMiddleware, view, (req, res, next) => controller.getById(req, res, next));
         router.post('/:id/cancel', AuthMiddleware, manage, (req, res, next) => controller.cancel(req, res, next));
         router.post('/:id/ship', AuthMiddleware, move, (req, res, next) => controller.ship(req, res, next));

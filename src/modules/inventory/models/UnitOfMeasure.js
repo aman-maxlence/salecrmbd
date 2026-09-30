@@ -25,6 +25,19 @@ const initializeUnitOfMeasureModel = (sequelize) => {
             allowNull:    false,
             defaultValue: 'active',
         },
+        type: {
+            type:         DataTypes.ENUM('weight', 'volume', 'count', 'length', 'area', 'time', 'other'),
+            allowNull:    false,
+            defaultValue: 'other',
+        },
+        base_unit_id: {
+            type:       DataTypes.INTEGER,
+            allowNull:  true,
+        },
+        conversion_factor: {
+            type:         DataTypes.DECIMAL(18, 6),
+            allowNull:    true,
+        },
     }, {
         tableName:   'inventory_uoms',
         timestamps:  true,

@@ -198,6 +198,27 @@ class PortalUserService {
         return portalUser;
     }
 
+    /**
+     * Data-relevance scope for Warehouse/Vendor selection, not an
+     * authorization boundary - PermissionMiddleware already decided this
+     * caller is allowed near the route. This only narrows which rows they
+     * see, derived from their Territory's country. `is_admin` is exclusive
+     * to the protected Super Admin role (never a custom permission-holding
+     * role, see OrgRole.js), so this bypass stays narrow. A user with no
+     * Territory yet, or a Territory with no Country set, is left
+     * unrestricted rather than suddenly seeing nothing.
+     */
+    async resolveCountryScope(portalUser) {
+        if (portalUser?.role?.is_admin === true) return { restricted: false, countryId: null };
+        if (!portalUser?.territory_id) return { restricted: false, countryId: null };
+
+        const { Territory } = this.models;
+        const territory = await Territory.findByPk(portalUser.territory_id);
+        if (!territory?.country_id) return { restricted: false, countryId: null };
+
+        return { restricted: true, countryId: territory.country_id };
+    }
+
     async listByOrg(orgId) {
         const { PortalUser, OrgRole, Territory } = this.models;
         const portalUsers = await PortalUser.findAll({
@@ -306,7 +327,7 @@ class PortalUserService {
      * orgs/products) - this only revokes their standing in this org.
      */
     async removeUser(orgId, userId, actingUserId) {
-        const { PortalUser } = this.models;
+        const { PortalUser, PortalUserTeam } = this.models;
 
         if (String(userId) === String(actingUserId)) {
             throw new AppError('You cannot remove yourself from the organization.', 400, ErrorCode.VALIDATION_ERROR);
@@ -324,7 +345,85 @@ class PortalUserService {
         portalUser.status = 'inactive';
         portalUser.team_id = null;
         await portalUser.save();
+        await PortalUserTeam.destroy({ where: { org_id: orgId, portal_user_id: portalUser.id } });
         return portalUser;
+    }
+
+    /**
+     * Supplementary team memberships on top of the primary team_id above -
+     * only usable when the org has BusinessPreferences.allow_multiple_teams
+     * on. Returns Team rows (not raw PortalUserTeam join rows) since that's
+     * what the UI actually needs to prefill a picker.
+     */
+    async getAdditionalTeams(orgId, userId) {
+        const { PortalUser, PortalUserTeam, Team } = this.models;
+        const portalUser = await PortalUser.findOne({ where: { user_id: userId, org_id: orgId } });
+        if (!portalUser) {
+            throw new AppError('User not found in this org.', 404, ErrorCode.NOT_FOUND);
+        }
+        const rows = await PortalUserTeam.findAll({
+            where: { org_id: orgId, portal_user_id: portalUser.id },
+            include: [{ model: Team, as: 'team' }],
+        });
+        return rows.map((r) => r.team).filter(Boolean);
+    }
+
+    /**
+     * Wholesale-replace the user's supplementary teams with `teamIds` -
+     * same "diff, don't blind clear-then-insert" convention TeamService
+     * uses for its own membership replace, so unrelated rows (and their
+     * created_at) aren't churned on every save.
+     */
+    async setAdditionalTeams(orgId, userId, teamIds, actorUserId = null) {
+        const { PortalUser, PortalUserTeam, Team, BusinessPreferences } = this.models;
+        const portalUser = await PortalUser.findOne({ where: { user_id: userId, org_id: orgId } });
+        if (!portalUser) {
+            throw new AppError('User not found in this org.', 404, ErrorCode.NOT_FOUND);
+        }
+
+        const requestedIds = Array.isArray(teamIds) ? [...new Set(teamIds.map(Number))] : [];
+        // Never store the primary team as an "additional" one too - it's
+        // already implied.
+        const targetIds = requestedIds.filter((id) => id !== Number(portalUser.team_id));
+
+        if (targetIds.length > 0) {
+            const prefs = await BusinessPreferences.findOne({ where: { org_id: orgId } });
+            if (!prefs?.allow_multiple_teams) {
+                throw new AppError('Multiple team membership is not enabled for this organization.', 409, ErrorCode.CONFLICT);
+            }
+            const validTeams = await Team.count({ where: { id: targetIds, org_id: orgId } });
+            if (validTeams !== targetIds.length) {
+                throw new AppError('One or more teams were not found in this org.', 404, ErrorCode.NOT_FOUND);
+            }
+        }
+
+        const existing = await PortalUserTeam.findAll({ where: { org_id: orgId, portal_user_id: portalUser.id } });
+        const existingIds = existing.map((r) => r.team_id);
+
+        const toRemove = existing.filter((r) => !targetIds.includes(r.team_id));
+        const toAdd = targetIds.filter((id) => !existingIds.includes(id));
+
+        const sequelize = PortalUserTeam.sequelize;
+        await sequelize.transaction(async (transaction) => {
+            if (toRemove.length > 0) {
+                await PortalUserTeam.destroy({ where: { id: toRemove.map((r) => r.id) }, transaction });
+            }
+            if (toAdd.length > 0) {
+                await PortalUserTeam.bulkCreate(
+                    toAdd.map((teamId) => ({ org_id: orgId, portal_user_id: portalUser.id, team_id: teamId })),
+                    { transaction }
+                );
+            }
+        });
+
+        if (toRemove.length > 0 || toAdd.length > 0) {
+            await this.auditLogService.record(orgId, actorUserId, 'portal_user.additional_teams_changed', {
+                entityType: 'portal_user', entityId: portalUser.id,
+                details: { targetUserId: userId, previousTeamIds: existingIds, newTeamIds: targetIds },
+            });
+        }
+
+        return this.getAdditionalTeams(orgId, userId);
     }
 
     async markOnboarded(orgId, userId, transaction) {

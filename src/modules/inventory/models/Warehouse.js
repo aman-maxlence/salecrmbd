@@ -24,6 +24,10 @@ const initializeWarehouseModel = (sequelize) => {
             type:      DataTypes.STRING(255),
             allowNull: true,
         },
+        country_id: {
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
         status: {
             type:         DataTypes.ENUM('active', 'inactive'),
             allowNull:    false,

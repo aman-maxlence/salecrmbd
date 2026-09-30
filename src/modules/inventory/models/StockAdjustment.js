@@ -36,6 +36,13 @@ const initializeStockAdjustmentModel = (sequelize) => {
             type:      DataTypes.STRING(500),
             allowNull: true,
         },
+        // What date this movement is meant to represent (e.g. "opening stock
+        // as of Jan 1") - separate from created_at (when the row was actually
+        // entered). Display-only, defaults to today when not given.
+        effective_date: {
+            type:      DataTypes.DATEONLY,
+            allowNull: true,
+        },
         reference_type: {
             type:      DataTypes.STRING(50),
             allowNull: true,
@@ -47,6 +54,20 @@ const initializeStockAdjustmentModel = (sequelize) => {
         },
         reference_number: {
             type:      DataTypes.STRING(50),
+            allowNull: true,
+        },
+        // Freeform note distinct from `reason` (which is often a short,
+        // structured category like "Damaged"/"Lost" in the UI) - lets a user
+        // add real context without overloading that field's meaning.
+        notes: {
+            type:      DataTypes.STRING(500),
+            allowNull: true,
+        },
+        // Only meaningful for type='receive' - which shelf location within
+        // the warehouse this receipt was placed at, mirroring opening
+        // stock's own location picker.
+        location_id: {
+            type:      DataTypes.INTEGER,
             allowNull: true,
         },
         status: {

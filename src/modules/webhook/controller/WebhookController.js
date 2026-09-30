@@ -62,8 +62,8 @@ export class WebhookController {
      */
     async handleOrgInviteLinkJoined(req, res) {
         try {
-            const { userId, orgId, emailId, linkToken } = req.body;
-            const result = await this.webhookService.handleOrgInviteLinkJoined({ userId, orgId, emailId, linkToken });
+            const { userId, orgId, emailId, linkToken, newLinkToken } = req.body;
+            const result = await this.webhookService.handleOrgInviteLinkJoined({ userId, orgId, emailId, linkToken, newLinkToken });
 
             await this.webhookService.logWebhookEvent('ORG_INVITE_LINK_JOINED', { userId, orgId, emailId }, 'success');
 

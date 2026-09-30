@@ -22,7 +22,8 @@ export const INVENTORY_ITEM_SCHEMA = [
             { fieldKey: 'sku', label: 'SKU', fieldType: 'text', position: 2 },
             { fieldKey: 'category_id', label: 'Category', fieldType: 'select', position: 3 },
             { fieldKey: 'brand_id', label: 'Brand', fieldType: 'select', position: 4 },
-            { fieldKey: 'description', label: 'Description', fieldType: 'textarea', position: 5 },
+            { fieldKey: 'manufacturer_id', label: 'Manufacturer', fieldType: 'select', position: 5 },
+            { fieldKey: 'description', label: 'Description', fieldType: 'textarea', position: 6 },
         ],
     },
     {
@@ -31,6 +32,9 @@ export const INVENTORY_ITEM_SCHEMA = [
             { fieldKey: 'unit_price', label: 'Unit Price', fieldType: 'number', position: 0 },
             { fieldKey: 'cost_price', label: 'Cost Price', fieldType: 'number', position: 1 },
             { fieldKey: 'tax', label: 'Tax (%)', fieldType: 'number', position: 2 },
+            { fieldKey: 'pricing_tier_id', label: 'Pricing Tier', fieldType: 'select', position: 3 },
+            { fieldKey: 'scheduled_price', label: 'Scheduled Price', fieldType: 'number', position: 4 },
+            { fieldKey: 'price_effective_date', label: 'Effective Date', fieldType: 'date', position: 5 },
         ],
     },
     {
@@ -40,6 +44,29 @@ export const INVENTORY_ITEM_SCHEMA = [
             { fieldKey: 'uom_id', label: 'Unit of Measure', fieldType: 'select', position: 1 },
             { fieldKey: 'low_stock_threshold', label: 'Low Stock Threshold', fieldType: 'number', position: 2 },
             { fieldKey: 'barcode', label: 'Barcode', fieldType: 'text', position: 3 },
+            // Previously only changeable via the Delete/Reactivate buttons on
+            // ItemDetailPage/ItemListPage, never directly on the form itself
+            // (Item/Product Management checklist finding).
+            { fieldKey: 'status', label: 'Status', fieldType: 'select', options: ['active', 'inactive'], position: 4 },
+        ],
+    },
+    {
+        // Physical specs + secondary identifiers - coded on the form since
+        // the product's very first pass, but never actually reachable
+        // before now because nothing seeded them into any org's default
+        // schema (Form Builder checklist audit finding).
+        heading: 'Specifications & Identifiers',
+        fields: [
+            { fieldKey: 'length', label: 'Length', fieldType: 'number', position: 0 },
+            { fieldKey: 'width', label: 'Width', fieldType: 'number', position: 1 },
+            { fieldKey: 'height', label: 'Height', fieldType: 'number', position: 2 },
+            { fieldKey: 'dimension_unit', label: 'Dimension Unit', fieldType: 'select', position: 3 },
+            { fieldKey: 'weight', label: 'Weight', fieldType: 'number', position: 4 },
+            { fieldKey: 'weight_unit', label: 'Weight Unit', fieldType: 'select', position: 5 },
+            { fieldKey: 'upc', label: 'UPC', fieldType: 'text', position: 6 },
+            { fieldKey: 'mpn', label: 'MPN', fieldType: 'text', position: 7 },
+            { fieldKey: 'ean', label: 'EAN', fieldType: 'text', position: 8 },
+            { fieldKey: 'isbn', label: 'ISBN', fieldType: 'text', position: 9 },
         ],
     },
 ];

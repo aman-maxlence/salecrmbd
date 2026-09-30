@@ -56,6 +56,15 @@ const initializeBusinessPreferencesModel = (sequelize) => {
             allowNull: false,
             defaultValue: DEFAULT_BUSINESS_HOURS,
         },
+        // Off by default - a user has exactly one team (PortalUser.team_id)
+        // unless an org explicitly opts into letting them also hold
+        // supplementary memberships (see PortalUserTeam / PortalUserService
+        // setAdditionalTeams).
+        allow_multiple_teams: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+        },
     }, {
         tableName: 'business_preferences',
         timestamps: true,

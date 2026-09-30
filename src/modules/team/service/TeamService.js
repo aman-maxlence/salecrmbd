@@ -18,7 +18,40 @@ class TeamService {
             },
             { model: Territory, as: 'territory', include: [{ model: Country, as: 'country' }] },
             { model: PortalUser, as: 'members' },
+            { model: PortalUser, as: 'additionalMembers' },
         ];
+    }
+
+    /**
+     * Merges the primary-team members (via PortalUser.team_id) with anyone
+     * holding this team as a supplementary membership (PortalUserTeam) into
+     * one de-duplicated `members` array - every existing "who's on this
+     * team" view (tree, TeamDetailPage, org chart) already reads `.members`
+     * and filters nothing else, so this is the one place that needs to
+     * change for multi-team to show up everywhere else for free.
+     *
+     * Deliberately a response-shaping step, not part of getTeamById/getTeams
+     * themselves - updateTeam still needs a live Sequelize instance (with
+     * `.save()`) from getTeamById mid-method, so callers apply this only
+     * when handing a team back to the controller, never on an instance
+     * they're about to mutate.
+     */
+    serializeTeam(team) {
+        const json = team.toJSON ? team.toJSON() : team;
+        const seen = new Set();
+        const merged = [];
+        for (const m of [...(json.members ?? []), ...(json.additionalMembers ?? [])]) {
+            if (seen.has(m.user_id)) continue;
+            seen.add(m.user_id);
+            merged.push(m);
+        }
+        json.members = merged;
+        delete json.additionalMembers;
+        return json;
+    }
+
+    serializeTeams(teams) {
+        return teams.map((t) => this.serializeTeam(t));
     }
 
     async createTeam(orgId, { name, departmentId, description, managerUserId, memberUserIds }, actorUserId = null) {
@@ -189,9 +222,10 @@ class TeamService {
     }
 
     async deleteTeam(orgId, teamId, actorUserId = null) {
-        const { PortalUser } = this.models;
+        const { PortalUser, PortalUserTeam } = this.models;
         const team = await this.getTeamById(orgId, teamId);
         await PortalUser.update({ team_id: null }, { where: { org_id: orgId, team_id: teamId } });
+        await PortalUserTeam.destroy({ where: { org_id: orgId, team_id: teamId } });
         await team.destroy();
         await this.auditLogService.record(orgId, actorUserId, 'team.deleted', {
             entityType: 'team', entityId: teamId, details: { name: team.name },

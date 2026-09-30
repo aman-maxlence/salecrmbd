@@ -43,7 +43,7 @@ class CatalogLookupService {
         return this.model.create(attrs);
     }
 
-    async update(orgId, id, { name, parentId }) {
+    async update(orgId, id, { name, parentId, status }) {
         const row = await this._find(orgId, id);
         if (name !== undefined) {
             if (!name?.trim()) throw new AppError('Name is required.', 400, ErrorCode.VALIDATION_ERROR);
@@ -55,11 +55,44 @@ class CatalogLookupService {
             if (parentId) {
                 if (Number(parentId) === Number(id)) throw new AppError('A category cannot be its own parent.', 400, ErrorCode.VALIDATION_ERROR);
                 await this._assertExists(orgId, parentId);
+                if (await this._wouldCreateCycle(orgId, id, parentId)) {
+                    throw new AppError('That would create a circular category hierarchy.', 400, ErrorCode.VALIDATION_ERROR);
+                }
             }
             row.parent_id = parentId || null;
         }
+        // Deactivating never needs the in-use guard delete() has - existing
+        // items keep their (now-inactive) category/brand/manufacturer tag,
+        // this just hides it from pickers for new selections. Only actually
+        // removing the row needs to check nothing still references it.
+        if (status !== undefined) {
+            if (!['active', 'inactive'].includes(status)) {
+                throw new AppError('Status must be "active" or "inactive".', 400, ErrorCode.VALIDATION_ERROR);
+            }
+            row.status = status;
+        }
         await row.save();
         return row;
+    }
+
+    /**
+     * Walks the proposed parent's ancestor chain to check whether `id`
+     * appears in it - catches indirect cycles (A -> B -> A) that the
+     * direct self-parent check above misses. Bounded by a visited-set
+     * so a pre-existing bad chain can't loop forever.
+     */
+    async _wouldCreateCycle(orgId, id, parentId) {
+        const targetId = Number(id);
+        const visited = new Set();
+        let currentId = Number(parentId);
+        while (currentId != null && !Number.isNaN(currentId)) {
+            if (currentId === targetId) return true;
+            if (visited.has(currentId)) return false;
+            visited.add(currentId);
+            const current = await this.model.findOne({ where: { id: currentId, org_id: orgId } });
+            currentId = current?.parent_id != null ? Number(current.parent_id) : null;
+        }
+        return false;
     }
 
     async delete(orgId, id) {

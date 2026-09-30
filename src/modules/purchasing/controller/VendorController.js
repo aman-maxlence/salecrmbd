@@ -9,9 +9,13 @@ class VendorController {
         return req.user?.org?.id;
     }
 
+    _countryScope(req) {
+        return req.countryScope ?? { restricted: false, countryId: null };
+    }
+
     async list(req, res, next) {
         try {
-            const vendors = await this.vendorService.list(this._orgId(req), { status: req.query.status });
+            const vendors = await this.vendorService.list(this._orgId(req), { status: req.query.status }, this._countryScope(req));
             return res.json(ResponseFormatter.success('Vendors fetched successfully', vendors, 200));
         } catch (err) {
             next(err);
@@ -20,7 +24,7 @@ class VendorController {
 
     async getById(req, res, next) {
         try {
-            const vendor = await this.vendorService.getById(this._orgId(req), req.params.id);
+            const vendor = await this.vendorService.getById(this._orgId(req), req.params.id, this._countryScope(req));
             return res.json(ResponseFormatter.success('Vendor fetched successfully', vendor, 200));
         } catch (err) {
             next(err);
@@ -38,7 +42,7 @@ class VendorController {
 
     async update(req, res, next) {
         try {
-            const vendor = await this.vendorService.update(this._orgId(req), req.params.id, req.body);
+            const vendor = await this.vendorService.update(this._orgId(req), req.params.id, req.body, this._countryScope(req));
             return res.json(ResponseFormatter.success('Vendor updated successfully', vendor, 200));
         } catch (err) {
             next(err);
@@ -47,7 +51,7 @@ class VendorController {
 
     async delete(req, res, next) {
         try {
-            await this.vendorService.delete(this._orgId(req), req.params.id);
+            await this.vendorService.delete(this._orgId(req), req.params.id, this._countryScope(req));
             return res.json(ResponseFormatter.success('Vendor deleted successfully', null, 200));
         } catch (err) {
             next(err);

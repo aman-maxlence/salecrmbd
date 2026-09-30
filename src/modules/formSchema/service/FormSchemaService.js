@@ -69,7 +69,10 @@ class FormSchemaService {
         this._assertKnownEntityType(entityType);
         const { FormSection, FormFieldDefinition } = this.models;
         const existing = await FormFieldDefinition.count({ where: { org_id: orgId, entity_type: entityType } });
-        if (existing > 0) return;
+        if (existing > 0) {
+            await this._syncMissingBuiltinFields(orgId, entityType);
+            return;
+        }
 
         let sectionPosition = 0;
         for (const sectionSeed of SCHEMA_REGISTRY[entityType]) {
@@ -98,6 +101,80 @@ class FormSchemaService {
                     visibility_rule: fieldSeed.visibilityRule ?? null,
                     is_builtin: true,
                 });
+            }
+        }
+    }
+
+    /**
+     * Orgs that already had a schema seeded before a new builtin field was
+     * added to the registry (e.g. pricing_tier_id) would otherwise never
+     * see it, since ensureDefaultSchema only runs its seed loop once ever
+     * per org. Diffs the registry against what's already there and adds
+     * anything missing into its matching section (creating the section too
+     * if even that doesn't exist yet), so existing orgs pick up new builtin
+     * fields without a manual data migration.
+     */
+    async _syncMissingBuiltinFields(orgId, entityType) {
+        const { FormSection, FormFieldDefinition, FormFieldExclusion } = this.models;
+        const existingFields = await FormFieldDefinition.findAll({
+            where: { org_id: orgId, entity_type: entityType },
+            attributes: ['field_key'],
+        });
+        const existingKeys = new Set(existingFields.map((f) => f.field_key));
+
+        const exclusions = await FormFieldExclusion.findAll({
+            where: { org_id: orgId, entity_type: entityType },
+            attributes: ['field_key'],
+        });
+        const excludedKeys = new Set(exclusions.map((e) => e.field_key));
+
+        for (const [sectionIndex, sectionSeed] of SCHEMA_REGISTRY[entityType].entries()) {
+            const missing = sectionSeed.fields.filter((f) => !existingKeys.has(f.fieldKey) && !excludedKeys.has(f.fieldKey));
+            if (missing.length === 0) continue;
+
+            let section = await FormSection.findOne({
+                where: { org_id: orgId, entity_type: entityType, heading: sectionSeed.heading ?? null, parent_section_id: null },
+            });
+            if (!section) {
+                // Heading may have been renamed since the section was first
+                // created - fall back to matching by seed position so a
+                // renamed section is reused instead of spawning a duplicate.
+                // (Learned the hard way - this exact gap once stranded a
+                // restored field in a brand-new, misplaced section instead of
+                // the org's actual, renamed section.)
+                section = await FormSection.findOne({
+                    where: { org_id: orgId, entity_type: entityType, position: sectionIndex, parent_section_id: null },
+                });
+            }
+            if (!section) {
+                const maxPosition = await FormSection.max('position', { where: { org_id: orgId, entity_type: entityType, parent_section_id: null } });
+                section = await FormSection.create({
+                    org_id: orgId,
+                    entity_type: entityType,
+                    parent_section_id: null,
+                    heading: sectionSeed.heading ?? null,
+                    description: sectionSeed.description ?? null,
+                    position: (maxPosition ?? -1) + 1,
+                    visibility_rule: sectionSeed.visibilityRule ?? null,
+                });
+            }
+
+            for (const fieldSeed of missing) {
+                await FormFieldDefinition.create({
+                    org_id: orgId,
+                    entity_type: entityType,
+                    section_id: section.id,
+                    field_key: fieldSeed.fieldKey,
+                    label: fieldSeed.label,
+                    field_type: fieldSeed.fieldType,
+                    required: Boolean(fieldSeed.required),
+                    visible: true,
+                    position: fieldSeed.position ?? 0,
+                    options: fieldSeed.options ?? null,
+                    visibility_rule: fieldSeed.visibilityRule ?? null,
+                    is_builtin: true,
+                });
+                existingKeys.add(fieldSeed.fieldKey);
             }
         }
     }
@@ -293,14 +370,50 @@ class FormSchemaService {
         return field;
     }
 
-    /** Built-in rows can never be deleted (there's a real column behind them) - only hidden via `visible: false`. */
+    /**
+     * A builtin field CAN be deleted (an org may just not want e.g. Pricing
+     * Tier or Scheduled Price on their form at all) - guards keep this safe:
+     * - 'name' is never deletable, builtin OR custom: item creation
+     *   unconditionally requires it server-side
+     *   (ItemService._validateItemPayload), not gated by this schema's
+     *   required flag, so there'd be no way to satisfy that check with the
+     *   input gone. This applies even to a custom field merely keyed 'name'
+     *   - if an org's 'name' slot happens to be filled by a custom row
+     *   instead of the builtin one (e.g. it was created before the builtin
+     *   registry seed ever ran), deleting that custom row is just as fatal
+     *   as deleting the builtin one would be: it leaves NO input for a
+     *   column the backend always demands. (Learned the hard way - this
+     *   exact gap once deleted an org's only 'name' field and broke item
+     *   creation entirely until _syncMissingBuiltinFields was re-run by hand.)
+     * - Any OTHER builtin field currently marked required can't be deleted
+     *   either - admin must uncheck "Required" first, otherwise item
+     *   creation would start failing that required-field check with no way
+     *   to fill it in. (Custom fields don't need this: their required-ness
+     *   is only ever enforced by re-querying which FormFieldDefinition rows
+     *   still exist, so deleting one can never leave a dangling requirement.)
+     * Deleting a builtin field also records the exclusion so
+     * ensureDefaultSchema's auto-backfill (_syncMissingBuiltinFields) never
+     * silently re-adds it - without that, the field would just reappear the
+     * next time the schema is fetched.
+     */
     async deleteField(orgId, id) {
-        const { FormFieldDefinition, FormFieldValue } = this.models;
+        const { FormFieldDefinition, FormFieldValue, FormFieldExclusion } = this.models;
         const field = await FormFieldDefinition.findOne({ where: { id, org_id: orgId } });
         if (!field) throw new AppError('Field not found.', 404, ErrorCode.NOT_FOUND);
-        if (field.is_builtin) {
-            throw new AppError('Built-in fields can\'t be deleted - turn off "Visible" instead.', 409, ErrorCode.CONFLICT);
+
+        if (field.field_key === 'name') {
+            throw new AppError('The Name field is always required and can\'t be removed.', 409, ErrorCode.CONFLICT);
         }
+
+        if (field.is_builtin) {
+            if (field.required) {
+                throw new AppError('Turn off "Required" before removing this field.', 409, ErrorCode.CONFLICT);
+            }
+            await FormFieldExclusion.findOrCreate({
+                where: { org_id: orgId, entity_type: field.entity_type, field_key: field.field_key },
+            });
+        }
+
         await FormFieldValue.destroy({ where: { field_id: id } });
         await field.destroy();
     }
@@ -352,14 +465,29 @@ class FormSchemaService {
      * writing the entity's own row, so a bad value fails the whole request
      * instead of leaving a half-saved entity behind.
      */
-    async validateValues(orgId, entityType, valuesByFieldId) {
+    /**
+     * `enforceRequired` catches a required custom field that was left out of
+     * the payload entirely (not just submitted-but-blank) - previously only
+     * checked fields that were actually present in `valuesByFieldId`, so a
+     * required field omitted altogether silently passed. Only pass it on a
+     * genuinely full submission (item creation); an update payload that
+     * doesn't touch custom fields at all is a legitimate partial edit, not a
+     * missing-required-field error.
+     */
+    async validateValues(orgId, entityType, valuesByFieldId, { enforceRequired = false } = {}) {
         const { FormFieldDefinition } = this.models;
         const fields = await FormFieldDefinition.findAll({ where: { org_id: orgId, entity_type: entityType, is_builtin: false } });
         const submittedIds = new Set(Object.keys(valuesByFieldId ?? {}).map(Number));
 
         const normalizedByFieldId = new Map();
         for (const field of fields) {
-            if (!field.visible || !submittedIds.has(field.id)) continue;
+            if (!field.visible) continue;
+            if (!submittedIds.has(field.id)) {
+                if (enforceRequired && field.required) {
+                    throw new AppError(`"${field.label}" is required.`, 400, ErrorCode.VALIDATION_ERROR);
+                }
+                continue;
+            }
             normalizedByFieldId.set(field.id, this._validateValue(field, valuesByFieldId[field.id]));
         }
         return normalizedByFieldId;

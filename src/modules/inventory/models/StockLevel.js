@@ -20,6 +20,14 @@ const initializeStockLevelModel = (sequelize) => {
             type:      DataTypes.INTEGER,
             allowNull: false,
         },
+        // Where within the warehouse this stock physically sits - a placement
+        // tag only, never part of the quantity-accounting key (that stays
+        // item+warehouse) or the receive/issue/transfer locking path, so
+        // adding it doesn't touch the existing stock-ledger logic at all.
+        location_id: {
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
         quantity: {
             type:         DataTypes.DECIMAL(14, 4),
             allowNull:    false,

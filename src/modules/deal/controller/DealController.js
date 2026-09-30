@@ -9,6 +9,10 @@ class DealController {
         return req.user?.org?.id;
     }
 
+    _countryScope(req) {
+        return req.countryScope ?? { restricted: false, countryId: null };
+    }
+
     async listDeals(req, res, next) {
         try {
             const deals = await this.dealService.listDeals(this._orgId(req));
@@ -47,7 +51,7 @@ class DealController {
 
     async addLineItem(req, res, next) {
         try {
-            const deal = await this.dealService.addLineItem(this._orgId(req), req.params.id, req.body);
+            const deal = await this.dealService.addLineItem(this._orgId(req), req.params.id, req.body, this._countryScope(req));
             return res.json(ResponseFormatter.success('Item added to deal', deal, 201));
         } catch (err) {
             next(err);
@@ -56,7 +60,7 @@ class DealController {
 
     async updateLineItem(req, res, next) {
         try {
-            const deal = await this.dealService.updateLineItem(this._orgId(req), req.params.id, req.params.lineId, req.body);
+            const deal = await this.dealService.updateLineItem(this._orgId(req), req.params.id, req.params.lineId, req.body, this._countryScope(req));
             return res.json(ResponseFormatter.success('Line item updated', deal, 200));
         } catch (err) {
             next(err);

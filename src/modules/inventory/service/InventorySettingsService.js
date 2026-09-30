@@ -7,6 +7,7 @@ import {
     DEFAULT_WAREHOUSE,
     toNumber,
 } from '../../../constants/inventory.js';
+import { scopedWhere, assertWarehouseInScope } from '../../../utils/countryScope.js';
 
 class InventorySettingsService {
     constructor(models) {
@@ -52,15 +53,23 @@ class InventorySettingsService {
         return settings;
     }
 
-    async getBundle(orgId) {
+    async getBundle(orgId, countryScope) {
         await this.ensureDefaults(orgId);
-        const { InventorySettings, UnitOfMeasure, PricingTier, Warehouse } = this.models;
+        const { InventorySettings, UnitOfMeasure, PricingTier, Warehouse, Country } = this.models;
 
         const [settings, units, pricingTiers, warehouses] = await Promise.all([
             InventorySettings.findOne({ where: { org_id: orgId } }),
-            UnitOfMeasure.findAll({ where: { org_id: orgId }, order: [['name', 'ASC']] }),
+            UnitOfMeasure.findAll({
+                where: { org_id: orgId },
+                include: [{ model: UnitOfMeasure, as: 'baseUnit', required: false, attributes: ['id', 'name', 'abbreviation'] }],
+                order: [['name', 'ASC']],
+            }),
             PricingTier.findAll({ where: { org_id: orgId }, order: [['name', 'ASC']] }),
-            Warehouse.findAll({ where: { org_id: orgId }, order: [['name', 'ASC']] }),
+            Warehouse.findAll({
+                where: scopedWhere({ org_id: orgId }, countryScope),
+                include: [{ model: Country, as: 'country', required: false }],
+                order: [['name', 'ASC']],
+            }),
         ]);
 
         return { settings, units, pricingTiers, warehouses };
@@ -80,6 +89,16 @@ class InventorySettingsService {
         }
         if (payload.reorderAlertsEnabled !== undefined) {
             settings.reorder_alerts_enabled = Boolean(payload.reorderAlertsEnabled);
+        }
+        if (payload.skuPrefix !== undefined) {
+            const prefix = payload.skuPrefix?.trim() ?? '';
+            if (prefix.length > 20) {
+                throw new AppError('SKU prefix must be 20 characters or fewer.', 400, ErrorCode.VALIDATION_ERROR);
+            }
+            if (prefix && !/^[A-Za-z0-9_-]+$/.test(prefix)) {
+                throw new AppError('SKU prefix can only contain letters, numbers, hyphens and underscores.', 400, ErrorCode.VALIDATION_ERROR);
+            }
+            settings.sku_prefix = prefix;
         }
         await settings.save();
         return this.getBundle(orgId);
@@ -103,7 +122,24 @@ class InventorySettingsService {
         return this.getBundle(orgId);
     }
 
-    async createUom(orgId, { name, abbreviation }) {
+    /**
+     * "Generate/enter unique SKU" using the org's own configured structure
+     * (prefix + a zero-padded running counter) instead of the old hardcoded
+     * `SKU-<timestamp>` fallback. The counter only advances when an
+     * auto-SKU is actually generated (a manually-typed SKU never touches
+     * it) - a race between two concurrent auto-generates is still caught
+     * by ItemService's own duplicate-SKU check, same safety net a
+     * manually-typed clash already relies on.
+     */
+    async generateNextSku(orgId) {
+        const settings = await this.ensureDefaults(orgId);
+        const sku = `${settings.sku_prefix}${String(settings.sku_next_number).padStart(5, '0')}`;
+        settings.sku_next_number += 1;
+        await settings.save();
+        return sku;
+    }
+
+    async createUom(orgId, { name, abbreviation, type, baseUnitId, conversionFactor }) {
         await this.ensureDefaults(orgId);
         const { UnitOfMeasure } = this.models;
         if (!name?.trim() || !abbreviation?.trim()) {
@@ -115,23 +151,78 @@ class InventorySettingsService {
         if (existing) {
             throw new AppError('A unit with that abbreviation already exists.', 409, ErrorCode.CONFLICT);
         }
+        const resolvedType = this._validateUomType(type);
+        const conversion = await this._validateConversion(orgId, null, baseUnitId, conversionFactor, resolvedType);
         return UnitOfMeasure.create({
             org_id: orgId,
             name: name.trim(),
             abbreviation: abbreviation.trim().toUpperCase(),
             status: 'active',
+            type: resolvedType,
+            base_unit_id: conversion.baseUnitId,
+            conversion_factor: conversion.conversionFactor,
         });
     }
 
-    async updateUom(orgId, id, { name, abbreviation, status }) {
+    async updateUom(orgId, id, { name, abbreviation, status, type, baseUnitId, conversionFactor }) {
         const { UnitOfMeasure } = this.models;
         const row = await UnitOfMeasure.findOne({ where: { id, org_id: orgId } });
         if (!row) throw new AppError('Unit of measure not found.', 404, ErrorCode.NOT_FOUND);
         if (name !== undefined) row.name = name.trim();
         if (abbreviation !== undefined) row.abbreviation = abbreviation.trim().toUpperCase();
         if (status !== undefined) row.status = status;
+        if (type !== undefined) row.type = this._validateUomType(type);
+        if (baseUnitId !== undefined || conversionFactor !== undefined) {
+            const conversion = await this._validateConversion(orgId, id, baseUnitId, conversionFactor, row.type);
+            row.base_unit_id = conversion.baseUnitId;
+            row.conversion_factor = conversion.conversionFactor;
+        }
         await row.save();
         return row;
+    }
+
+    _validateUomType(type) {
+        const allowed = ['weight', 'volume', 'count', 'length', 'area', 'time', 'other'];
+        if (type === undefined || type === null || type === '') return 'other';
+        if (!allowed.includes(type)) {
+            throw new AppError(`UOM type must be one of: ${allowed.join(', ')}.`, 400, ErrorCode.VALIDATION_ERROR);
+        }
+        return type;
+    }
+
+    /**
+     * A unit may optionally declare `1 of this unit = conversionFactor * baseUnit`.
+     * Kept to a single-level chain (a base unit can't itself have a base unit,
+     * and a unit already acting as someone else's base can't take one on) so
+     * conversions never require walking a multi-hop graph - simple enough to
+     * cover "kg is the base, g/lb convert to it" without cycle-detection logic.
+     */
+    async _validateConversion(orgId, id, baseUnitId, conversionFactor, type) {
+        if (!baseUnitId) return { baseUnitId: null, conversionFactor: null };
+        const { UnitOfMeasure } = this.models;
+
+        if (id != null && Number(baseUnitId) === Number(id)) {
+            throw new AppError('A unit cannot convert to itself.', 400, ErrorCode.VALIDATION_ERROR);
+        }
+        const factor = toNumber(conversionFactor, NaN);
+        if (!Number.isFinite(factor) || factor <= 0) {
+            throw new AppError('Conversion factor must be a positive number.', 400, ErrorCode.VALIDATION_ERROR);
+        }
+        const baseUnit = await UnitOfMeasure.findOne({ where: { id: baseUnitId, org_id: orgId } });
+        if (!baseUnit) throw new AppError('Base unit not found.', 404, ErrorCode.NOT_FOUND);
+        if (baseUnit.base_unit_id) {
+            throw new AppError('That unit already converts to another base unit and cannot itself be used as a base.', 400, ErrorCode.VALIDATION_ERROR);
+        }
+        if (type && baseUnit.type !== type) {
+            throw new AppError('A unit can only convert to a base unit of the same type.', 400, ErrorCode.VALIDATION_ERROR);
+        }
+        if (id != null) {
+            const dependents = await UnitOfMeasure.count({ where: { org_id: orgId, base_unit_id: id } });
+            if (dependents > 0) {
+                throw new AppError('Other units already convert to this one - it cannot also convert to a base unit.', 400, ErrorCode.VALIDATION_ERROR);
+            }
+        }
+        return { baseUnitId: Number(baseUnitId), conversionFactor: factor };
     }
 
     async deleteUom(orgId, id) {
@@ -141,6 +232,10 @@ class InventorySettingsService {
         const inUse = await InventoryItem.count({ where: { org_id: orgId, uom_id: id } });
         if (inUse > 0) {
             throw new AppError(`This unit is still used by ${inUse} item(s).`, 409, ErrorCode.CONFLICT);
+        }
+        const dependents = await UnitOfMeasure.count({ where: { org_id: orgId, base_unit_id: id } });
+        if (dependents > 0) {
+            throw new AppError(`${dependents} other unit(s) convert to this one - remove those conversions first.`, 409, ErrorCode.CONFLICT);
         }
         await row.destroy();
     }
@@ -191,22 +286,23 @@ class InventorySettingsService {
         await row.destroy();
     }
 
-    async listWarehouses(orgId) {
+    async listWarehouses(orgId, countryScope) {
         await this.ensureDefaults(orgId);
-        const { Warehouse } = this.models;
-        return Warehouse.findAll({ where: { org_id: orgId }, order: [['name', 'ASC']] });
+        const { Warehouse, Country } = this.models;
+        return Warehouse.findAll({
+            where: scopedWhere({ org_id: orgId }, countryScope),
+            include: [{ model: Country, as: 'country', required: false }],
+            order: [['name', 'ASC']],
+        });
     }
 
-    async getWarehouse(orgId, id) {
-        const { Warehouse } = this.models;
-        const row = await Warehouse.findOne({ where: { id, org_id: orgId } });
-        if (!row) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
-        return row;
+    async getWarehouse(orgId, id, countryScope) {
+        return assertWarehouseInScope(this.models, orgId, id, countryScope);
     }
 
-    async createWarehouse(orgId, { name, code, location }) {
+    async createWarehouse(orgId, { name, code, location, countryId }) {
         await this.ensureDefaults(orgId);
-        const { Warehouse } = this.models;
+        const { Warehouse, Country } = this.models;
         if (!name?.trim() || !code?.trim()) {
             throw new AppError('Warehouse name and code are required.', 400, ErrorCode.VALIDATION_ERROR);
         }
@@ -214,19 +310,30 @@ class InventorySettingsService {
             where: { org_id: orgId, code: code.trim().toUpperCase() },
         });
         if (existing) throw new AppError('A warehouse with that code already exists.', 409, ErrorCode.CONFLICT);
+        if (countryId) {
+            const country = await Country.findOne({ where: { id: countryId, org_id: orgId } });
+            if (!country) throw new AppError('Country not found.', 404, ErrorCode.NOT_FOUND);
+        }
         return Warehouse.create({
             org_id: orgId,
             name: name.trim(),
             code: code.trim().toUpperCase(),
             location: location?.trim() || null,
+            country_id: countryId ?? null,
             status: 'active',
         });
     }
 
-    async updateWarehouse(orgId, id, { name, code, location, status }) {
-        const { Warehouse } = this.models;
-        const row = await Warehouse.findOne({ where: { id, org_id: orgId } });
-        if (!row) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+    async updateWarehouse(orgId, id, { name, code, location, status, countryId }, countryScope) {
+        const { Country } = this.models;
+        const row = await assertWarehouseInScope(this.models, orgId, id, countryScope);
+        if (countryId !== undefined) {
+            if (countryId) {
+                const country = await Country.findOne({ where: { id: countryId, org_id: orgId } });
+                if (!country) throw new AppError('Country not found.', 404, ErrorCode.NOT_FOUND);
+            }
+            row.country_id = countryId;
+        }
         if (name !== undefined) row.name = name.trim();
         if (code !== undefined) row.code = code.trim().toUpperCase();
         if (location !== undefined) row.location = location?.trim() || null;
@@ -235,10 +342,9 @@ class InventorySettingsService {
         return row;
     }
 
-    async deleteWarehouse(orgId, id) {
-        const { Warehouse, StockLevel } = this.models;
-        const row = await Warehouse.findOne({ where: { id, org_id: orgId } });
-        if (!row) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+    async deleteWarehouse(orgId, id, countryScope) {
+        const { StockLevel } = this.models;
+        const row = await assertWarehouseInScope(this.models, orgId, id, countryScope);
         const stockRows = await StockLevel.count({ where: { org_id: orgId, warehouse_id: id } });
         if (stockRows > 0) {
             throw new AppError('This warehouse still has stock records. Transfer or issue stock before deleting it.', 409, ErrorCode.CONFLICT);

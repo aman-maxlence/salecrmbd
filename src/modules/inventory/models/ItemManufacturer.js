@@ -16,6 +16,11 @@ const initializeItemManufacturerModel = (sequelize) => {
             type:      DataTypes.STRING(255),
             allowNull: false,
         },
+        status: {
+            type:         DataTypes.ENUM('active', 'inactive'),
+            allowNull:    false,
+            defaultValue: 'active',
+        },
     }, {
         tableName:   'inventory_item_manufacturers',
         timestamps:  true,

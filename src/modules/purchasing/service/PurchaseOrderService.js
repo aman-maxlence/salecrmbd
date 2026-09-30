@@ -2,11 +2,14 @@ import AppError from '../../../errors/AppError.js';
 import { ErrorCode } from '../../../errors/index.js';
 import { toNumber } from '../../../constants/inventory.js';
 import StockService from '../../inventory/service/StockService.js';
+import BillService from './BillService.js';
+import { assertWarehouseInScope, assertVendorInScope } from '../../../utils/countryScope.js';
 
 class PurchaseOrderService {
     constructor(models) {
         this.models = models;
         this.stockService = new StockService(models);
+        this.billService = new BillService(models);
     }
 
     async list(orgId, { status, vendorId } = {}) {
@@ -28,8 +31,8 @@ class PurchaseOrderService {
         return this._find(orgId, id, true);
     }
 
-    async create(orgId, { vendorId, warehouseId, expectedDate, notes, lines }, createdBy) {
-        const { PurchaseOrder, PurchaseOrderLineItem, Vendor, Warehouse, InventoryItem } = this.models;
+    async create(orgId, { vendorId, warehouseId, expectedDate, notes, lines }, createdBy, countryScope) {
+        const { PurchaseOrder, PurchaseOrderLineItem, InventoryItem } = this.models;
 
         if (!vendorId) throw new AppError('Vendor is required.', 400, ErrorCode.VALIDATION_ERROR);
         if (!warehouseId) throw new AppError('Destination warehouse is required.', 400, ErrorCode.VALIDATION_ERROR);
@@ -37,10 +40,8 @@ class PurchaseOrderService {
             throw new AppError('At least one line item is required.', 400, ErrorCode.VALIDATION_ERROR);
         }
 
-        const vendor = await Vendor.findOne({ where: { id: vendorId, org_id: orgId } });
-        if (!vendor) throw new AppError('Vendor not found.', 404, ErrorCode.NOT_FOUND);
-        const warehouse = await Warehouse.findOne({ where: { id: warehouseId, org_id: orgId, status: 'active' } });
-        if (!warehouse) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+        const vendor = await assertVendorInScope(this.models, orgId, vendorId, countryScope);
+        const warehouse = await assertWarehouseInScope(this.models, orgId, warehouseId, countryScope, { status: 'active' });
 
         const normalizedLines = [];
         for (const line of lines) {
@@ -138,16 +139,21 @@ class PurchaseOrderService {
         refreshed.status = fullyReceived ? 'received' : (anyReceived ? 'partially_received' : refreshed.status);
         await refreshed.save();
 
+        if (anyReceived) {
+            await this.billService.syncForPurchaseOrder(orgId, refreshed, userId);
+        }
+
         return this.getById(orgId, id);
     }
 
     async _find(orgId, id, withLines) {
-        const { PurchaseOrder, PurchaseOrderLineItem, Vendor, Warehouse, InventoryItem } = this.models;
+        const { PurchaseOrder, PurchaseOrderLineItem, Vendor, Warehouse, InventoryItem, Bill } = this.models;
         const po = await PurchaseOrder.findOne({
             where: { id, org_id: orgId },
             include: [
                 { model: Vendor, as: 'vendor', required: false },
                 { model: Warehouse, as: 'warehouse', required: false },
+                { model: Bill, as: 'bill', required: false },
                 ...(withLines ? [{
                     model: PurchaseOrderLineItem,
                     as: 'lineItems',

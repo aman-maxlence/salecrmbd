@@ -13,6 +13,10 @@ class PurchaseOrderController {
         return req.user?.id ?? req.userId;
     }
 
+    _countryScope(req) {
+        return req.countryScope ?? { restricted: false, countryId: null };
+    }
+
     async list(req, res, next) {
         try {
             const orders = await this.purchaseOrderService.list(this._orgId(req), {
@@ -36,7 +40,7 @@ class PurchaseOrderController {
 
     async create(req, res, next) {
         try {
-            const order = await this.purchaseOrderService.create(this._orgId(req), req.body, this._userId(req));
+            const order = await this.purchaseOrderService.create(this._orgId(req), req.body, this._userId(req), this._countryScope(req));
             return res.json(ResponseFormatter.success('Purchase order created successfully', order, 201));
         } catch (err) {
             next(err);

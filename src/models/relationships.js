@@ -5,11 +5,12 @@
  */
 export default function initializeRelationships(models) {
     const {
-        OrgRole, Country, Territory, Department, Team, PortalUser, Invitation, InviteLink,
+        OrgRole, Country, Territory, Department, Team, PortalUser, PortalUserTeam, Invitation, InviteLink,
         InventoryItem, UnitOfMeasure, PricingTier, Warehouse,
-        StockLevel, ItemPriceHistory, LowStockAlert, StockAdjustment,
+        StockLevel, ItemPriceHistory, ItemQuantityPriceBreak, LowStockAlert, StockAdjustment,
+        StockLocation,
         Deal, DealLineItem,
-        Vendor, PurchaseOrder, PurchaseOrderLineItem,
+        Vendor, PurchaseOrder, PurchaseOrderLineItem, Bill, BillPayment,
         SalesOrder, SalesOrderLineItem,
         TransferOrder, TransferOrderLineItem,
         Package, PackageLineItem,
@@ -45,6 +46,14 @@ export default function initializeRelationships(models) {
     PortalUser.belongsTo(Team, { foreignKey: 'team_id', as: 'team' });
     Team.hasMany(PortalUser, { foreignKey: 'team_id', as: 'members' });
 
+    // Supplementary memberships on top of the primary team_id above - see
+    // PortalUserTeam.js. A second, parallel association; the primary
+    // team_id relationship above is untouched.
+    PortalUser.belongsToMany(Team, { through: PortalUserTeam, foreignKey: 'portal_user_id', otherKey: 'team_id', as: 'additionalTeams' });
+    Team.belongsToMany(PortalUser, { through: PortalUserTeam, foreignKey: 'team_id', otherKey: 'portal_user_id', as: 'additionalMembers' });
+    PortalUserTeam.belongsTo(Team, { foreignKey: 'team_id', as: 'team' });
+    PortalUserTeam.belongsTo(PortalUser, { foreignKey: 'portal_user_id', as: 'portalUser' });
+
     Invitation.belongsTo(OrgRole, { foreignKey: 'role_id', as: 'role' });
     Invitation.belongsTo(Territory, { foreignKey: 'territory_id', as: 'territory' });
     Invitation.belongsTo(Team, { foreignKey: 'team_id', as: 'team' });
@@ -53,9 +62,12 @@ export default function initializeRelationships(models) {
     InviteLink.belongsTo(Territory, { foreignKey: 'territory_id', as: 'territory' });
 
     InventoryItem.belongsTo(UnitOfMeasure, { foreignKey: 'uom_id', as: 'uom' });
+    UnitOfMeasure.belongsTo(UnitOfMeasure, { foreignKey: 'base_unit_id', as: 'baseUnit' });
+    UnitOfMeasure.hasMany(UnitOfMeasure, { foreignKey: 'base_unit_id', as: 'derivedUnits' });
     InventoryItem.belongsTo(PricingTier, { foreignKey: 'pricing_tier_id', as: 'pricingTier' });
     InventoryItem.hasMany(StockLevel, { foreignKey: 'item_id', as: 'stockLevels' });
     InventoryItem.hasMany(ItemPriceHistory, { foreignKey: 'item_id', as: 'priceHistory' });
+    InventoryItem.hasMany(ItemQuantityPriceBreak, { foreignKey: 'item_id', as: 'quantityPriceBreaks' });
     InventoryItem.hasMany(DealLineItem, { foreignKey: 'item_id', as: 'dealLineItems' });
     InventoryItem.hasMany(LowStockAlert, { foreignKey: 'item_id', as: 'lowStockAlerts' });
     InventoryItem.hasMany(StockAdjustment, { foreignKey: 'item_id', as: 'adjustments' });
@@ -65,6 +77,15 @@ export default function initializeRelationships(models) {
     InventoryItem.belongsTo(ItemManufacturer, { foreignKey: 'manufacturer_id', as: 'manufacturerRef' });
     ItemCategory.belongsTo(ItemCategory, { foreignKey: 'parent_id', as: 'parent' });
     ItemCategory.hasMany(ItemCategory, { foreignKey: 'parent_id', as: 'children' });
+
+    Warehouse.belongsTo(Country, { foreignKey: 'country_id', as: 'country' });
+    Country.hasMany(Warehouse, { foreignKey: 'country_id', as: 'warehouses' });
+
+    Warehouse.hasMany(StockLocation, { foreignKey: 'warehouse_id', as: 'locations' });
+    StockLocation.belongsTo(Warehouse, { foreignKey: 'warehouse_id', as: 'warehouse' });
+    StockLocation.belongsTo(StockLocation, { foreignKey: 'parent_location_id', as: 'parent' });
+    StockLocation.hasMany(StockLocation, { foreignKey: 'parent_location_id', as: 'children' });
+    StockLevel.belongsTo(StockLocation, { foreignKey: 'location_id', as: 'location' });
 
     // ==================== GENERIC FORM SCHEMA (sections/fields, any entity_type) ====================
 
@@ -87,6 +108,7 @@ export default function initializeRelationships(models) {
     StockAdjustment.belongsTo(InventoryItem, { foreignKey: 'item_id', as: 'item' });
     StockAdjustment.belongsTo(Warehouse, { foreignKey: 'from_warehouse_id', as: 'fromWarehouse' });
     StockAdjustment.belongsTo(Warehouse, { foreignKey: 'to_warehouse_id', as: 'toWarehouse' });
+    StockAdjustment.belongsTo(StockLocation, { foreignKey: 'location_id', as: 'location' });
 
     Deal.hasMany(DealLineItem, { foreignKey: 'deal_id', as: 'lineItems' });
     DealLineItem.belongsTo(Deal, { foreignKey: 'deal_id', as: 'deal' });
@@ -115,6 +137,9 @@ export default function initializeRelationships(models) {
 
     // ==================== VENDORS / PURCHASE ORDERS ====================
 
+    Vendor.belongsTo(Country, { foreignKey: 'country_id', as: 'country' });
+    Country.hasMany(Vendor, { foreignKey: 'country_id', as: 'vendors' });
+
     Vendor.hasMany(PurchaseOrder, { foreignKey: 'vendor_id', as: 'purchaseOrders' });
     PurchaseOrder.belongsTo(Vendor, { foreignKey: 'vendor_id', as: 'vendor' });
     PurchaseOrder.belongsTo(Warehouse, { foreignKey: 'warehouse_id', as: 'warehouse' });
@@ -122,6 +147,13 @@ export default function initializeRelationships(models) {
     PurchaseOrder.hasMany(PurchaseOrderLineItem, { foreignKey: 'purchase_order_id', as: 'lineItems' });
     PurchaseOrderLineItem.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id', as: 'purchaseOrder' });
     PurchaseOrderLineItem.belongsTo(InventoryItem, { foreignKey: 'item_id', as: 'item' });
+
+    PurchaseOrder.hasOne(Bill, { foreignKey: 'purchase_order_id', as: 'bill' });
+    Bill.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id', as: 'purchaseOrder' });
+    Bill.belongsTo(Vendor, { foreignKey: 'vendor_id', as: 'vendor' });
+    Vendor.hasMany(Bill, { foreignKey: 'vendor_id', as: 'bills' });
+    Bill.hasMany(BillPayment, { foreignKey: 'bill_id', as: 'payments' });
+    BillPayment.belongsTo(Bill, { foreignKey: 'bill_id', as: 'bill' });
 
     // ==================== SALES ORDERS ====================
 

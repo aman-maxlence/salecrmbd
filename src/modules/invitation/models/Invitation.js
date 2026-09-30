@@ -6,7 +6,13 @@ import { DataTypes } from 'sequelize';
  * entirely userbd's responsibility (see InvitationService.createInvitation's
  * call out to userbd) - this row only tracks the local role/territory
  * assignment and userbd's invite id for reference, so there's deliberately
- * no local token/expires_at column and no 'expired' status.
+ * no local expires_at column and no 'expired' status (see is_expired,
+ * computed from created_at instead).
+ *
+ * `invite_url` IS stored here (as opaque display data, not re-derived) so an
+ * admin can copy/share the accept-invite link directly instead of relying
+ * solely on userbd's best-effort invite email landing in the invitee's
+ * inbox - the same URL userbd already emails them.
  */
 const initializeInvitationModel = (sequelize) => {
     const Invitation = sequelize.define('Invitation', {
@@ -55,6 +61,10 @@ const initializeInvitationModel = (sequelize) => {
         },
         user_service_invite_id: {
             type:      DataTypes.STRING(255),
+            allowNull: true,
+        },
+        invite_url: {
+            type:      DataTypes.STRING(500),
             allowNull: true,
         },
         created_by: {

@@ -181,9 +181,12 @@ class InviteLinkService {
         await this._requestUserServiceRevoke(orgId, actingUserId);
 
         const { InviteLink, OrgRole, Territory } = this.models;
-        const inviteLink = await InviteLink.findOne({ where: { org_id: orgId } });
+        const inviteLink = await InviteLink.findOne({
+            where: { org_id: orgId, status: 'active' },
+            order: [['id', 'DESC']],
+        });
         if (!inviteLink) {
-            throw new AppError('No invite link exists for this org yet.', 404, ErrorCode.NOT_FOUND);
+            throw new AppError('No active invite link exists for this org.', 404, ErrorCode.NOT_FOUND);
         }
 
         inviteLink.status = 'revoked';

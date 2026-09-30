@@ -2,6 +2,7 @@ import express from 'express';
 import { Database } from '../models/index.js';
 import AuthMiddleware from '../middleware/AuthMiddleware.js';
 import PermissionMiddleware from '../middleware/PermissionMiddleware.js';
+import CountryScopeMiddleware from '../middleware/CountryScopeMiddleware.js';
 import SalesOrderService from '../modules/salesOrder/service/SalesOrderService.js';
 import SalesOrderController from '../modules/salesOrder/controller/SalesOrderController.js';
 import Logger from '../utils/Logger.js';
@@ -19,7 +20,7 @@ export async function initializeSalesOrderRoutes() {
         const fulfill = PermissionMiddleware('fulfill_sales_orders');
 
         router.get('/', AuthMiddleware, view, (req, res, next) => controller.list(req, res, next));
-        router.post('/', AuthMiddleware, manage, (req, res, next) => controller.create(req, res, next));
+        router.post('/', AuthMiddleware, manage, CountryScopeMiddleware, (req, res, next) => controller.create(req, res, next));
         router.get('/:id', AuthMiddleware, view, (req, res, next) => controller.getById(req, res, next));
         router.post('/:id/cancel', AuthMiddleware, manage, (req, res, next) => controller.cancel(req, res, next));
         router.post('/:id/fulfill', AuthMiddleware, fulfill, (req, res, next) => controller.fulfill(req, res, next));

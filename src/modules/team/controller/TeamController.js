@@ -13,7 +13,7 @@ class TeamController {
             const team = await this.teamService.createTeam(orgId, {
                 name, departmentId, description, managerUserId, memberUserIds,
             }, actorUserId);
-            return res.json(ResponseFormatter.success('Team created successfully', team, 201));
+            return res.json(ResponseFormatter.success('Team created successfully', this.teamService.serializeTeam(team), 201));
         } catch (err) {
             next(err);
         }
@@ -24,7 +24,7 @@ class TeamController {
             const orgId = req.user?.org?.id;
             const { territoryId, departmentId } = req.query;
             const teams = await this.teamService.getTeams(orgId, { territoryId, departmentId });
-            return res.json(ResponseFormatter.success('Teams fetched successfully', teams, 200));
+            return res.json(ResponseFormatter.success('Teams fetched successfully', this.teamService.serializeTeams(teams), 200));
         } catch (err) {
             next(err);
         }
@@ -34,7 +34,7 @@ class TeamController {
         try {
             const orgId = req.user?.org?.id;
             const team = await this.teamService.getTeamById(orgId, req.params.id);
-            return res.json(ResponseFormatter.success('Team fetched successfully', team, 200));
+            return res.json(ResponseFormatter.success('Team fetched successfully', this.teamService.serializeTeam(team), 200));
         } catch (err) {
             next(err);
         }
@@ -48,7 +48,7 @@ class TeamController {
             const team = await this.teamService.updateTeam(orgId, req.params.id, {
                 name, description, departmentId, managerUserId, status, memberUserIds,
             }, actorUserId);
-            return res.json(ResponseFormatter.success('Team updated successfully', team, 200));
+            return res.json(ResponseFormatter.success('Team updated successfully', this.teamService.serializeTeam(team), 200));
         } catch (err) {
             next(err);
         }

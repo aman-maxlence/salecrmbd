@@ -31,7 +31,11 @@ class CatalogLookupController {
 
     async update(req, res, next) {
         try {
-            const row = await this.service.update(this._orgId(req), req.params.id, { name: req.body.name, parentId: req.body.parentId });
+            const row = await this.service.update(this._orgId(req), req.params.id, {
+                name: req.body.name,
+                parentId: req.body.parentId,
+                status: req.body.status,
+            });
             return res.json(ResponseFormatter.success(`${this.resourceLabel} updated successfully`, row, 200));
         } catch (err) {
             next(err);

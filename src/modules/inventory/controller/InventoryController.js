@@ -1,11 +1,12 @@
 import ResponseFormatter from '../../../utils/ResponseFormatter.js';
 
 class InventoryController {
-    constructor({ settingsService, itemService, stockService, alertService }) {
+    constructor({ settingsService, itemService, stockService, alertService, stockLocationService }) {
         this.settingsService = settingsService;
         this.itemService = itemService;
         this.stockService = stockService;
         this.alertService = alertService;
+        this.stockLocationService = stockLocationService;
     }
 
     _orgId(req) {
@@ -16,9 +17,13 @@ class InventoryController {
         return req.user?.id ?? req.userId;
     }
 
+    _countryScope(req) {
+        return req.countryScope ?? { restricted: false, countryId: null };
+    }
+
     async getSettings(req, res, next) {
         try {
-            const bundle = await this.settingsService.getBundle(this._orgId(req));
+            const bundle = await this.settingsService.getBundle(this._orgId(req), this._countryScope(req));
             return res.json(ResponseFormatter.success('Inventory settings fetched successfully', bundle, 200));
         } catch (err) {
             next(err);
@@ -99,7 +104,7 @@ class InventoryController {
 
     async listWarehouses(req, res, next) {
         try {
-            const rows = await this.settingsService.listWarehouses(this._orgId(req));
+            const rows = await this.settingsService.listWarehouses(this._orgId(req), this._countryScope(req));
             return res.json(ResponseFormatter.success('Warehouses fetched successfully', rows, 200));
         } catch (err) {
             next(err);
@@ -108,7 +113,7 @@ class InventoryController {
 
     async getWarehouse(req, res, next) {
         try {
-            const row = await this.settingsService.getWarehouse(this._orgId(req), req.params.id);
+            const row = await this.settingsService.getWarehouse(this._orgId(req), req.params.id, this._countryScope(req));
             return res.json(ResponseFormatter.success('Warehouse fetched successfully', row, 200));
         } catch (err) {
             next(err);
@@ -126,7 +131,7 @@ class InventoryController {
 
     async updateWarehouse(req, res, next) {
         try {
-            const row = await this.settingsService.updateWarehouse(this._orgId(req), req.params.id, req.body);
+            const row = await this.settingsService.updateWarehouse(this._orgId(req), req.params.id, req.body, this._countryScope(req));
             return res.json(ResponseFormatter.success('Warehouse updated successfully', row, 200));
         } catch (err) {
             next(err);
@@ -135,8 +140,62 @@ class InventoryController {
 
     async deleteWarehouse(req, res, next) {
         try {
-            await this.settingsService.deleteWarehouse(this._orgId(req), req.params.id);
+            await this.settingsService.deleteWarehouse(this._orgId(req), req.params.id, this._countryScope(req));
             return res.json(ResponseFormatter.success('Warehouse deleted successfully', null, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getWarehouseStock(req, res, next) {
+        try {
+            const rows = await this.stockService.getWarehouseStockBreakdown(this._orgId(req), req.params.id, this._countryScope(req));
+            return res.json(ResponseFormatter.success('Warehouse stock fetched successfully', rows, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async listLocations(req, res, next) {
+        try {
+            const rows = await this.stockLocationService.list(this._orgId(req), req.params.warehouseId);
+            return res.json(ResponseFormatter.success('Locations fetched successfully', rows, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async createLocation(req, res, next) {
+        try {
+            const row = await this.stockLocationService.create(this._orgId(req), req.params.warehouseId, req.body);
+            return res.json(ResponseFormatter.success('Location created successfully', row, 201));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async updateLocation(req, res, next) {
+        try {
+            const row = await this.stockLocationService.update(this._orgId(req), req.params.warehouseId, req.params.id, req.body);
+            return res.json(ResponseFormatter.success('Location updated successfully', row, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async deleteLocation(req, res, next) {
+        try {
+            await this.stockLocationService.delete(this._orgId(req), req.params.warehouseId, req.params.id);
+            return res.json(ResponseFormatter.success('Location deleted successfully', null, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async setItemLocation(req, res, next) {
+        try {
+            const row = await this.stockService.setItemLocation(this._orgId(req), req.params.id, req.body.warehouseId, req.body.locationId);
+            return res.json(ResponseFormatter.success('Item location updated successfully', row, 200));
         } catch (err) {
             next(err);
         }
@@ -159,7 +218,7 @@ class InventoryController {
 
     async createItem(req, res, next) {
         try {
-            const item = await this.itemService.createItem(this._orgId(req), req.body, this._userId(req));
+            const item = await this.itemService.createItem(this._orgId(req), req.body, this._userId(req), this._countryScope(req));
             return res.json(ResponseFormatter.success('Item created successfully', item, 201));
         } catch (err) {
             next(err);
@@ -204,7 +263,7 @@ class InventoryController {
 
     async getStockBreakdown(req, res, next) {
         try {
-            const breakdown = await this.itemService.getStockBreakdown(this._orgId(req), req.params.id);
+            const breakdown = await this.itemService.getStockBreakdown(this._orgId(req), req.params.id, this._countryScope(req));
             return res.json(ResponseFormatter.success('Stock breakdown fetched successfully', breakdown, 200));
         } catch (err) {
             next(err);
@@ -222,7 +281,7 @@ class InventoryController {
 
     async updateItem(req, res, next) {
         try {
-            const item = await this.itemService.updateItem(this._orgId(req), req.params.id, req.body, this._userId(req));
+            const item = await this.itemService.updateItem(this._orgId(req), req.params.id, req.body, this._userId(req), this._countryScope(req));
             return res.json(ResponseFormatter.success('Item updated successfully', item, 200));
         } catch (err) {
             next(err);
@@ -242,6 +301,42 @@ class InventoryController {
         try {
             const item = await this.itemService.activateItem(this._orgId(req), req.params.id);
             return res.json(ResponseFormatter.success('Item reactivated successfully', item, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async listPriceBreaks(req, res, next) {
+        try {
+            const rows = await this.itemService.listPriceBreaks(this._orgId(req), req.params.id);
+            return res.json(ResponseFormatter.success('Price breaks fetched successfully', rows, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async createPriceBreak(req, res, next) {
+        try {
+            const row = await this.itemService.createPriceBreak(this._orgId(req), req.params.id, req.body);
+            return res.json(ResponseFormatter.success('Price break created successfully', row, 201));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async updatePriceBreak(req, res, next) {
+        try {
+            const row = await this.itemService.updatePriceBreak(this._orgId(req), req.params.id, req.params.breakId, req.body);
+            return res.json(ResponseFormatter.success('Price break updated successfully', row, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async deletePriceBreak(req, res, next) {
+        try {
+            await this.itemService.deletePriceBreak(this._orgId(req), req.params.id, req.params.breakId);
+            return res.json(ResponseFormatter.success('Price break deleted successfully', null, 200));
         } catch (err) {
             next(err);
         }
@@ -267,7 +362,7 @@ class InventoryController {
 
     async listAdjustments(req, res, next) {
         try {
-            const rows = await this.stockService.listAdjustments(this._orgId(req));
+            const rows = await this.stockService.listAdjustments(this._orgId(req), { referenceType: req.query.referenceType });
             return res.json(ResponseFormatter.success('Adjustments fetched successfully', rows, 200));
         } catch (err) {
             next(err);
@@ -318,6 +413,18 @@ class InventoryController {
         try {
             const report = await this.itemService.getCommittedStockReport(this._orgId(req));
             return res.json(ResponseFormatter.success('Committed stock report fetched successfully', report, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async getPurchaseHistoryReport(req, res, next) {
+        try {
+            const report = await this.itemService.getPurchaseHistoryReport(this._orgId(req), {
+                itemId: req.query.itemId,
+                vendorId: req.query.vendorId,
+            });
+            return res.json(ResponseFormatter.success('Purchase history fetched successfully', report, 200));
         } catch (err) {
             next(err);
         }

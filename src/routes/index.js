@@ -117,6 +117,11 @@ export async function initializeAllRoutes() {
         router.use('/org/:orgId/purchase-orders', purchaseOrderRoutes);
         Logger.info('Purchase order routes initialized');
 
+        const { default: initializeBillRoutes } = await import('./billRoutes.js');
+        const billRoutes = await initializeBillRoutes();
+        router.use('/org/:orgId/bills', billRoutes);
+        Logger.info('Bill routes initialized');
+
         const { default: initializeSalesOrderRoutes } = await import('./salesOrderRoutes.js');
         const salesOrderRoutes = await initializeSalesOrderRoutes();
         router.use('/org/:orgId/sales-orders', salesOrderRoutes);

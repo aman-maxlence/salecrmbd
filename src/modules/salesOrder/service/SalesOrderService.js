@@ -3,6 +3,7 @@ import { ErrorCode } from '../../../errors/index.js';
 import { toNumber } from '../../../constants/inventory.js';
 import StockService from '../../inventory/service/StockService.js';
 import TechnogexCatalogService from '../../technogex/service/TechnogexCatalogService.js';
+import { assertWarehouseInScope } from '../../../utils/countryScope.js';
 
 class SalesOrderService {
     constructor(models) {
@@ -33,14 +34,13 @@ class SalesOrderService {
      * read-only copy; editing the Sales Order afterward never writes back
      * to the Deal.
      */
-    async create(orgId, { dealId, warehouseId, customerName, customerEmail, customerPhone, notes, lines }, createdBy) {
-        const { SalesOrder, SalesOrderLineItem, Warehouse, InventoryItem, Deal, DealLineItem } = this.models;
+    async create(orgId, { dealId, warehouseId, customerName, customerEmail, customerPhone, notes, lines }, createdBy, countryScope) {
+        const { SalesOrder, SalesOrderLineItem, InventoryItem, Deal, DealLineItem } = this.models;
 
         if (!warehouseId) throw new AppError('Fulfillment warehouse is required.', 400, ErrorCode.VALIDATION_ERROR);
         if (!customerName?.trim()) throw new AppError('Customer name is required.', 400, ErrorCode.VALIDATION_ERROR);
 
-        const warehouse = await Warehouse.findOne({ where: { id: warehouseId, org_id: orgId, status: 'active' } });
-        if (!warehouse) throw new AppError('Warehouse not found.', 404, ErrorCode.NOT_FOUND);
+        await assertWarehouseInScope(this.models, orgId, warehouseId, countryScope, { status: 'active' });
 
         let sourceLines = lines;
         if (dealId) {

@@ -91,6 +91,21 @@ async function startServer() {
         setInterval(runLowStockJob, alertIntervalMs);
         Logger.info(`Low-stock alert job scheduled every ${alertIntervalMs}ms`);
 
+        const { default: ItemService } = await import('./modules/inventory/service/ItemService.js');
+        const scheduledPriceIntervalMs = Number.parseInt(process.env.SCHEDULED_PRICE_SWEEP_INTERVAL_MS, 10) || 60 * 60 * 1000;
+        const runScheduledPriceJob = async () => {
+            try {
+                const models = Database.getModels();
+                const applied = await new ItemService(models).applyScheduledPriceChanges();
+                Logger.info(`Scheduled price sweep finished: applied=${applied}`);
+            } catch (err) {
+                Logger.error('Scheduled price sweep failed:', err);
+            }
+        };
+        setTimeout(runScheduledPriceJob, 17_000);
+        setInterval(runScheduledPriceJob, scheduledPriceIntervalMs);
+        Logger.info(`Scheduled price sweep scheduled every ${scheduledPriceIntervalMs}ms`);
+
         const { default: InvitationService } = await import('./modules/invitation/service/InvitationService.js');
         const invitationReminderIntervalMs = Number.parseInt(process.env.INVITATION_REMINDER_INTERVAL_MS, 10) || 6 * 60 * 60 * 1000;
         const runInvitationReminderJob = async () => {

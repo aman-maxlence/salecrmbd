@@ -28,6 +28,10 @@ const initializeVendorModel = (sequelize) => {
             type:      DataTypes.STRING(500),
             allowNull: true,
         },
+        country_id: {
+            type:      DataTypes.INTEGER,
+            allowNull: true,
+        },
         status: {
             type:         DataTypes.ENUM('active', 'inactive'),
             allowNull:    false,

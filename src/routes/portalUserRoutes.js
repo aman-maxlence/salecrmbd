@@ -27,6 +27,8 @@ export async function initializePortalUserRoutes() {
         router.patch('/:userId/role', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.updateUserRoleOrTerritory(req, res, next));
         router.patch('/:userId/territory', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.updateUserRoleOrTerritory(req, res, next));
         router.patch('/:userId/team', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.updateUserRoleOrTerritory(req, res, next));
+        router.get('/:userId/additional-teams', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.getAdditionalTeams(req, res, next));
+        router.put('/:userId/additional-teams', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.setAdditionalTeams(req, res, next));
         router.patch('/:userId/manager', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.updateUserRoleOrTerritory(req, res, next));
         router.patch('/:userId/onboarding/restart', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.restartOnboarding(req, res, next));
         router.get('/:userId/onboarding', AuthMiddleware, PermissionMiddleware('manage_users'), (req, res, next) => portalUserController.getOnboardingDetail(req, res, next));

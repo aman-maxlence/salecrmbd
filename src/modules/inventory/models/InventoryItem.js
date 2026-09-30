@@ -29,6 +29,18 @@ const initializeInventoryItemModel = (sequelize) => {
             allowNull:    false,
             defaultValue: 0,
         },
+        // A pending price change queued to take effect on a future date -
+        // see ItemService.applyScheduledPriceChanges, which the low-stock
+        // alert job's scheduler also runs periodically. Both null except
+        // while a change is pending; cleared once applied to unit_price.
+        scheduled_price: {
+            type:      DataTypes.DECIMAL(14, 4),
+            allowNull: true,
+        },
+        price_effective_date: {
+            type:      DataTypes.DATEONLY,
+            allowNull: true,
+        },
         tax: {
             type:         DataTypes.DECIMAL(8, 4),
             allowNull:    false,

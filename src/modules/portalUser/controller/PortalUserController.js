@@ -39,6 +39,27 @@ class PortalUserController {
         }
     }
 
+    async getAdditionalTeams(req, res, next) {
+        try {
+            const orgId = req.user?.org?.id;
+            const teams = await this.portalUserService.getAdditionalTeams(orgId, req.params.userId);
+            return res.json(ResponseFormatter.success('Additional teams fetched successfully', teams, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
+    async setAdditionalTeams(req, res, next) {
+        try {
+            const orgId = req.user?.org?.id;
+            const actorUserId = req.user?.id ?? req.userId;
+            const teams = await this.portalUserService.setAdditionalTeams(orgId, req.params.userId, req.body.teamIds, actorUserId);
+            return res.json(ResponseFormatter.success('Additional teams updated successfully', teams, 200));
+        } catch (err) {
+            next(err);
+        }
+    }
+
     async removeUser(req, res, next) {
         try {
             const orgId = req.user?.org?.id;
